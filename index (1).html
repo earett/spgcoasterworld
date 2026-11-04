@@ -1,0 +1,2704 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>html{color-scheme:light}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Coaster Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Patrick+Hand&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: drafting-table stage on the left (track, gauges, g-force trace), inspection report + build sheet on the right */
+:root{
+  --paper:#eef3f8; --grid:#dbe4ee; --grid-major:#bccbdc; --ink:#17233a; --muted:#56677f;
+  --panel:#ffffff; --line:#d3dce8; --track:#1f3b66; --accent:#e8551b; --car:#f2b10a;
+  --ground:#cdd8c2; --support:#a3b4c8; --ok:#1d8656; --warn:#b97f00; --bad:#cf3626; --air:#2f7ad0;
+  --chip:#e4ebf3;
+  --f-display:"Bungee", "Arial Black", Impact, sans-serif;
+  --f-body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-hand:"Patrick Hand", "Comic Sans MS", "Segoe Print", cursive;
+  --f-mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0d1727; --grid:#16243a; --grid-major:#21334f; --ink:#e5edf8; --muted:#97a9c4;
+  --panel:#13213a; --line:#25385a; --track:#a9c8f5; --accent:#ff7a3d; --car:#ffc93c;
+  --ground:#1b2a20; --support:#34496b; --ok:#3fcd8e; --warn:#f0b532; --bad:#ff6b58; --air:#69aeff;
+  --chip:#1c2d4a; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0d1727; --grid:#16243a; --grid-major:#21334f; --ink:#e5edf8; --muted:#97a9c4;
+  --panel:#13213a; --line:#25385a; --track:#a9c8f5; --accent:#ff7a3d; --car:#ffc93c;
+  --ground:#1b2a20; --support:#34496b; --ok:#3fcd8e; --warn:#f0b532; --bad:#ff6b58; --air:#69aeff;
+  --chip:#1c2d4a; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 40px}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+h1{font-family:var(--f-display);font-weight:400;font-size:clamp(26px,4vw,38px);margin:0;letter-spacing:.01em;color:var(--ink)}
+h1 span{color:var(--accent)}
+header p{margin:0;color:var(--muted);max-width:60ch}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+@media (max-width:980px){.main{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0}
+.stage{padding:0;overflow:hidden}
+.canvasbox{position:relative}
+#trackCv{display:block;width:100%;height:400px;touch-action:none;cursor:default}
+#trackCv:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+@media (max-width:600px){#trackCv{height:300px}}
+.ctoolbar{position:absolute;top:10px;left:10px;right:10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;pointer-events:none}
+.ctoolbar > *{pointer-events:auto}
+.tool{padding:5px 10px;font-size:13px;background:var(--panel);box-shadow:0 1px 2px color-mix(in srgb,var(--ink) 15%,transparent)}
+.tool.danger{color:var(--bad)}
+.ctoolbar .spacer{pointer-events:none}
+.zoom{display:flex;gap:4px}
+@media (max-width:600px){.chint{display:none}}
+.zoom .tool{min-width:32px}
+.chint{font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--paper) 80%,transparent);padding:3px 8px;border-radius:5px;pointer-events:none}
+.popover{position:absolute;z-index:3;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px;display:flex;flex-direction:column;gap:6px;box-shadow:0 6px 20px color-mix(in srgb,var(--ink) 18%,transparent);max-width:calc(100% - 16px)}
+.pophead{display:flex;gap:8px;align-items:baseline;font-size:13px}
+.pophead span{color:var(--muted);font-family:var(--f-mono);font-size:12px}
+.popbtns{display:flex;flex-wrap:wrap;gap:6px}
+.el{cursor:pointer}
+.el .sum{font-size:13px;color:var(--muted);font-family:var(--f-mono)}
+.el .ctrls{display:flex;flex-direction:column;gap:8px}
+.el.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+details.fine summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+details.fine[open] summary{margin-bottom:8px}
+.transport{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--line)}
+button{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);background:var(--chip);color:var(--ink);padding:7px 12px;font-weight:600}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.go{background:var(--accent);border-color:var(--accent);color:#fff;font-family:var(--f-display);font-weight:400;letter-spacing:.03em;padding:8px 16px}
+button.go:hover{filter:brightness(1.07)}
+select{font:inherit;padding:6px 8px;border-radius:7px;border:1px solid var(--line);background:var(--chip);color:var(--ink)}
+label.inline{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:14px}
+.spacer{flex:1}
+.gauges{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border-top:1px solid var(--line)}
+@media (max-width:600px){.gauges{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.gauge{background:var(--panel);padding:10px 12px;min-width:0}
+.gauge .k{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
+.gauge .v{font-family:var(--f-mono);font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
+.gauge .v small{font-size:13px;color:var(--muted);font-weight:400;margin-left:3px}
+.gauge .sub{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.energy{padding:10px 12px 12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.ebar{display:flex;height:14px;border-radius:4px;overflow:hidden;background:var(--chip)}
+.ebar div{height:100%;transition:width .05s linear}
+.e-pe{background:var(--track)} .e-ke{background:var(--accent)} .e-heat{background:var(--warn)}
+.elegend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+.elegend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:0}
+.charthead{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:baseline;margin-bottom:6px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;margin:0;color:var(--muted);font-weight:700}
+#chartCv{display:block;width:100%;height:150px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:3px}
+
+/* inspection report */
+.report{display:flex;flex-direction:column;gap:12px}
+.verdict{display:flex;align-items:center;gap:12px}
+.stamp{font-family:var(--f-display);font-size:15px;padding:6px 10px;border:2.5px solid currentColor;border-radius:6px;transform:rotate(-3deg);white-space:nowrap}
+.stamp.ok{color:var(--ok)} .stamp.warn{color:var(--warn)} .stamp.bad{color:var(--bad)}
+.verdict p{margin:0;font-size:14px;color:var(--muted)}
+.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.checks li{display:grid;grid-template-columns:62px minmax(0,1fr);gap:10px;align-items:start}
+.tag{font-family:var(--f-mono);font-size:11px;font-weight:600;text-align:center;padding:3px 0;border-radius:4px;letter-spacing:.04em}
+.tag.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.tag.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.tag.bad{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.checks b{display:block;font-weight:600;font-size:14px}
+.checks span{display:block;font-size:13px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;border-top:1px dashed var(--line);padding-top:10px}
+.stat .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.stat .v{font-family:var(--f-mono);font-weight:600;font-variant-numeric:tabular-nums}
+.thrill{display:flex;flex-direction:column;gap:5px;border-top:1px dashed var(--line);padding-top:10px}
+.thrill .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.thrill .name{font-family:var(--f-display);font-size:16px;color:var(--accent)}
+.meter{height:8px;border-radius:4px;background:var(--chip);overflow:hidden}
+.meter div{height:100%;background:var(--accent)}
+
+/* build sheet */
+.build{display:flex;flex-direction:column;gap:12px}
+.presetrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.presetrow select{flex:1;min-width:0}
+.field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.field label{font-size:13px;font-weight:600}
+.field output{font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums;color:var(--muted)}
+.field input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+.field .hint{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.els{display:flex;flex-direction:column;gap:8px;list-style:none;margin:0;padding:0}
+.el{border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--chip) 45%,transparent)}
+.el.hot{border-color:var(--bad)}
+.elhead{display:flex;align-items:center;gap:8px}
+.num{font-family:var(--f-mono);font-size:12px;color:var(--muted);min-width:20px}
+.kind{font-weight:700;font-size:14px}
+.kind.loop{color:var(--accent)}
+.elhead .spacer{flex:1}
+.mini{padding:2px 8px;font-size:13px;font-weight:600;background:transparent}
+.adds{display:flex;gap:8px}
+.adds button{flex:1}
+.fixed{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center;padding:2px 2px}
+.fixed .num{min-width:20px}
+.note{font-size:12px;color:var(--muted);margin:0}
+@media (prefers-reduced-motion: reduce){.ebar div{transition:none}}
+/* header controls */
+header{justify-content:space-between;align-items:flex-end}
+.brand{display:flex;flex-direction:column;gap:4px;min-width:0}
+.hdrbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.tabs{display:flex;background:var(--chip);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+.tabs button{border:0;background:transparent;padding:6px 12px;border-radius:6px}
+.tabs button[aria-selected="true"]{background:var(--panel);box-shadow:0 1px 2px color-mix(in srgb,var(--ink) 18%,transparent)}
+.wallet{display:flex;gap:14px}
+.wallet span{display:flex;flex-direction:column;line-height:1.15}
+.wallet small{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.wallet b{font-family:var(--f-mono);font-size:17px;font-variant-numeric:tabular-nums}
+.ghost{background:transparent}
+.ghost.armed{background:var(--bad);border-color:var(--bad);color:#fff}
+body.game .sandbox-only, body:not(.game) .game-only{display:none!important}
+button.open{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:9px 14px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+.boardnote{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;padding:16px;background:color-mix(in srgb,var(--paper) 72%,transparent);z-index:2}
+.boardnote b{font-family:var(--f-display);font-weight:400;font-size:20px}
+.boardnote span{color:var(--muted);font-size:14px}
+/* contract board */
+.jobs{display:flex;flex-direction:column;gap:10px;list-style:none;margin:0;padding:0}
+.job{border:1px solid var(--line);border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.job.locked{opacity:.6}
+.job .who{font-size:12px;color:var(--muted)}
+.job h3,.brief h3{margin:0;font-size:16px}
+.job q,.brief q{font-size:13px;color:var(--muted);font-style:italic}
+.terms{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--f-mono);font-size:12px}
+.terms b{font-weight:600}
+.jobfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.stars{font-size:15px;letter-spacing:2px;color:var(--warn)}
+.stars .off{color:var(--line)}
+/* brief */
+.brief{display:flex;flex-direction:column;gap:10px}
+.reqs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.reqs li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:14px}
+.chk{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;font-family:var(--f-mono)}
+.chk.ok{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.chk.bad{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.chk.unk{background:var(--chip);color:var(--muted)}
+.reqs .val{font-family:var(--f-mono);font-size:12px;color:var(--muted);white-space:nowrap}
+.reqs li.bonus{border-top:1px dashed var(--line);padding-top:6px}
+.tests{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.pip{width:14px;height:14px;border-radius:4px;border:2px solid var(--accent)}
+.pip.used{background:transparent;border-color:var(--line)}
+.pip.left{background:var(--accent)}
+.untested{font-size:13px;background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--ink);padding:7px 9px;border-radius:7px}
+.curve{font-size:13px;background:color-mix(in srgb,var(--air) 14%,transparent);padding:7px 9px;border-radius:7px}
+.linkbtn{background:none;border:0;padding:0;color:var(--muted);text-decoration:underline;font-weight:500;font-size:13px;align-self:flex-start}
+/* budget + upgrades */
+.budget{display:flex;flex-direction:column;gap:5px}
+.budget .row{display:flex;justify-content:space-between;font-size:13px;font-weight:600;gap:8px}
+.budget .row span:last-child{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.budget .bar{height:10px;border-radius:5px;background:var(--chip);overflow:hidden}
+.budget .bar div{height:100%;background:var(--ok)}
+.budget.over .bar div{background:var(--bad)}
+.budget.over .row span:last-child{color:var(--bad)}
+.budget .break{font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+.upgrades{display:flex;flex-direction:column;gap:6px}
+.upgrades label{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:start;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px}
+.upgrades label span small{display:block;color:var(--muted)}
+.upgrades label b{font-family:var(--f-mono);font-size:12px}
+/* modal */
+.modal{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,var(--ink) 45%,transparent);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.mpanel{background:var(--panel);color:var(--ink);border-radius:12px;padding:18px;max-width:460px;width:100%;max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:12px;box-shadow:0 12px 40px color-mix(in srgb,var(--ink) 30%,transparent)}
+.mpanel h3{margin:0;font-family:var(--f-display);font-weight:400;font-size:21px}
+.mpanel p{margin:0}
+.mbtns{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.choices{display:flex;flex-wrap:wrap;gap:6px}
+.choices button[aria-pressed="true"],.wager button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.wager{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.qlabel{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.big{font-family:var(--f-mono);font-size:22px;font-weight:600}
+.resgrid{display:flex;flex-direction:column;gap:4px;font-size:14px}
+.resgrid div{display:flex;justify-content:space-between;gap:8px}
+.resgrid div span:last-child{font-family:var(--f-mono)}
+.mbtns .danger{color:var(--bad)}
+body:not(.real) .realnum, body:not(.real) .realctl{display:none!important}
+body.real .simplectl{display:none!important}
+.simplectl{display:flex;flex-direction:column;gap:8px}
+.segrow{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:center;font-size:13px;font-weight:600}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{padding:5px 10px;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.paint{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--line);padding-top:12px}
+.sw{display:flex;flex-wrap:wrap;gap:6px}
+.sw button{width:30px;height:30px;border-radius:50%;padding:0;border:2px solid var(--panel);box-shadow:0 0 0 1px var(--line)}
+.sw button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink)}
+.realtoggle{font-size:13px}
+.feelface{font-size:22px;margin-right:4px}
+.launch-only{display:none}
+body.launch .launch-only{display:flex}
+body.launch .wrap > .main, body.launch .realtoggle{display:none!important}
+#launch{flex-direction:column;gap:16px;max-width:1280px;margin:16px auto 0}
+.lhead{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.lintro{display:flex;flex-direction:column;gap:4px;min-width:0;max-width:62ch}
+.lintro h2{font-family:var(--f-display);font-weight:400;font-size:22px;letter-spacing:0;text-transform:none;color:var(--ink)}
+.lintro p{margin:0;color:var(--muted);font-size:14px}
+.mchips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.mchips button{min-width:46px;padding:5px 8px;display:flex;flex-direction:column;align-items:center;gap:0;line-height:1.1;font-family:var(--f-mono)}
+.mchips button small{font-size:10px;letter-spacing:1px;color:var(--warn)}
+.mchips button[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.mchips button.done{background:color-mix(in srgb,var(--ok) 14%,var(--panel))}
+#lCv{display:block;width:100%;height:320px}
+@media (max-width:600px){#lCv{height:240px}}
+.lstate{padding:9px 12px;border-top:1px solid var(--line);font-size:14px;min-height:40px}
+.lstate b{color:var(--accent)}
+.logwrap{overflow-x:auto}
+table.log{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.log th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.log td{padding:5px 8px;border-bottom:1px solid var(--line);font-family:var(--f-mono);white-space:nowrap}
+.log td:last-child{font-family:var(--f-body)}
+.log .empty td{color:var(--muted);font-family:var(--f-body);white-space:normal}
+.lcard{display:flex;flex-direction:column;gap:12px}
+.lcard h3{margin:0;font-size:18px}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.story{margin:0;font-size:14px}
+.rules{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;font-size:13px}
+.rules li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:6px;align-items:start}
+.givens{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:9px;padding:10px}
+.grow{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px;align-items:center;font-size:14px}
+.grow .gk{font-weight:600}
+.grow .gv{font-family:var(--f-mono);font-weight:600}
+.grow.unknown .gv{color:var(--accent)}
+.opts{display:flex;flex-wrap:wrap;gap:5px}
+.opts button{font-family:var(--f-mono);font-size:13px;padding:5px 9px}
+.opts button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.ansrow{display:flex;flex-direction:column;gap:6px}
+.ansrow label{font-weight:700;font-size:14px}
+.ansbox{display:flex;align-items:center;gap:8px}
+.ansbox input{font:inherit;font-family:var(--f-mono);font-size:20px;font-weight:600;width:100%;min-width:0;max-width:220px;padding:8px 10px;border-radius:8px;border:2px solid var(--line);background:var(--panel);color:var(--ink)}
+.ansbox input:focus{border-color:var(--accent);outline:none}
+.ansbox span{font-family:var(--f-mono);font-weight:600;color:var(--muted)}
+.formula{border:1px dashed var(--accent);border-radius:9px;padding:10px;display:flex;flex-direction:column;gap:3px;font-family:var(--f-mono);font-size:14px}
+.formula b{color:var(--accent)}
+.lres{border-radius:9px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.lres.ok{background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.lres.bad{background:color-mix(in srgb,var(--bad) 11%,transparent)}
+.lres.mid{background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.lres h4{margin:0;font-family:var(--f-display);font-weight:400;font-size:19px}
+.lres p{margin:0;font-size:14px}
+.work{font-family:var(--f-mono);font-size:14px;background:var(--panel);border-radius:6px;padding:7px 9px}
+.lbtns{display:flex;flex-wrap:wrap;gap:8px}
+.stagehead{display:flex;align-items:baseline;gap:10px;padding:10px 14px 8px;border-bottom:1px solid var(--line);min-width:0}
+.cname{font-family:var(--f-display);font-size:clamp(18px,2.4vw,24px);line-height:1.15;color:var(--accent);min-width:0;overflow-wrap:anywhere}
+.cname.empty{color:var(--muted)}
+.mycoaster{display:flex;flex-direction:column;gap:10px}
+.mycoaster .segrow{grid-template-columns:84px minmax(0,1fr)}
+#cNameIn{grid-column:1/-1;width:100%;min-width:0;font:inherit;font-size:16px;font-weight:600;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+#cNameIn:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 25%,transparent)}
+#cPreview{display:block;width:100%;height:96px;border-radius:8px;background:var(--paper)}
+.pickrow{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600}
+.mascots{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px}
+.mascots button{padding:3px 2px 4px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:11px;font-weight:600;background:var(--panel)}
+.mascots button canvas{width:40px;height:40px;display:block}
+.mascots button[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel))}
+.mascots .none{font-size:22px;line-height:40px;height:40px;color:var(--muted)}
+.seg button:disabled{opacity:.4}
+.newton-only{display:none}
+body.newton .newton-only{display:flex}
+body.newton .wrap > .main, body.newton .realtoggle{display:none!important}
+#newton{flex-direction:column;gap:16px;max-width:1280px;margin:16px auto 0}
+.nseg button{padding:7px 12px;font-size:14px}
+@media (max-width:980px){#newton .main > .col{display:contents} #nStage,#nCaseGrid{order:1} #nCard{order:2} #newton .stems{order:3}}
+#nCv{display:block;width:100%;height:340px}
+@media (max-width:600px){#nCv{height:250px}}
+.stems{display:flex;flex-direction:column;gap:10px}
+.stemgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:10px}
+.stem{border:1px solid var(--line);border-radius:8px;padding:9px 11px;display:flex;flex-direction:column;gap:3px}
+.stem b{font-size:13px}
+.stem p{margin:0;font-size:14px;line-height:1.5}
+.wordbank{margin:0;font-size:13px;color:var(--muted)}
+.wordbank b{color:var(--ink)}
+.mcq{display:flex;flex-direction:column;gap:7px}
+.mcq .qtext{font-weight:700;font-size:15px;margin:0}
+.mcq button.opt{text-align:left;font-weight:500;padding:9px 11px;line-height:1.35;background:var(--panel);display:grid;grid-template-columns:22px minmax(0,1fr);gap:6px}
+.mcq button.opt .ol{font-family:var(--f-mono);font-weight:600;color:var(--muted)}
+.mcq button.opt.right{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,var(--panel))}
+.mcq button.opt.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 9%,var(--panel));text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--bad) 60%,transparent)}
+.mcq button.opt:disabled{opacity:1;cursor:default}
+.fb{margin:0;font-size:14px;padding:8px 10px;border-radius:8px}
+.fb.ok{background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.fb.bad{background:color-mix(in srgb,var(--bad) 10%,transparent)}
+.paper{--rule:color-mix(in srgb,var(--air) 35%,transparent);position:relative;border-radius:6px;padding:0 12px 6px 40px;background-color:var(--panel);
+  background-image:linear-gradient(90deg,transparent 30px,color-mix(in srgb,var(--bad) 55%,transparent) 30px,color-mix(in srgb,var(--bad) 55%,transparent) 32px,transparent 32px),repeating-linear-gradient(transparent 0 27px,var(--rule) 27px 28px);
+  border:1px solid var(--line);box-shadow:0 1px 3px color-mix(in srgb,var(--ink) 12%,transparent)}
+.paper .ph{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;line-height:28px;display:block}
+.paper p{margin:0;font-family:var(--f-hand);font-size:19px;line-height:28px;color:var(--ink)}
+.cert{border:3px double var(--ok);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;align-items:center;text-align:center}
+.cert .stamp{font-size:20px}
+.cert .cname{font-size:22px}
+.cert canvas{width:110px;height:110px}
+.stops{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;width:100%;text-align:left}
+.stops li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center;font-size:14px}
+.lawtag{font-family:var(--f-mono);font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;background:var(--chip);white-space:nowrap}
+.casechips button.first{background:color-mix(in srgb,var(--ok) 16%,var(--panel))}
+.casechips button.retry{background:color-mix(in srgb,var(--warn) 18%,var(--panel))}
+.resgrid .tot{border-top:1px solid var(--line);padding-top:4px;font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>Coaster <span>Lab</span></h1>
+      <p>Build a track, then ride it. Every drop trades height for speed, and friction takes a little energy on every meter.</p>
+    </div>
+    <div class="hdrbar">
+      <div class="tabs" role="tablist" aria-label="Mode">
+        <button type="button" role="tab" id="tabSand" aria-selected="true">Sandbox</button>
+        <button type="button" role="tab" id="tabGame" aria-selected="false">Goals Mode</button>
+        <button type="button" role="tab" id="tabLaunch" aria-selected="false">Launch Lab</button>
+        <button type="button" role="tab" id="tabNewton" aria-selected="false">Newton&#8217;s Laws</button>
+      </div>
+      <div class="wallet game-only" aria-live="polite">
+        <span><small>Company bank</small><b id="wCash">$0</b></span>
+        <span><small>Reputation</small><b id="wRep">20</b></span>
+      </div>
+      <label class="inline realtoggle" for="realChk"><input type="checkbox" id="realChk"> Show real numbers</label>
+      <button type="button" id="resetAll" class="ghost">Reset all</button>
+    </div>
+  </header>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <div class="main">
+    <div class="col">
+      <section class="panel stage" aria-label="Track and ride">
+        <div class="stagehead"><span class="cname" id="cName"></span><button type="button" class="linkbtn" id="cNameEdit">Rename</button></div>
+        <div class="canvasbox" id="canvasBox">
+          <canvas id="trackCv" tabindex="0" aria-label="Coaster track editor. Drag the dots to change heights and lengths. Click a section for options. With a section selected, arrow keys nudge it and Delete removes it."></canvas>
+          <div class="ctoolbar" id="addBar">
+            <button type="button" class="tool" data-add="seg">+ Hill</button>
+            <button type="button" class="tool" data-add="loop">+ Loop</button>
+            <span class="chint" id="hint">Drag a dot to reshape · click a section for options</span>
+            <span class="spacer"></span>
+            <span class="zoom" role="group" aria-label="Zoom">
+              <button type="button" class="tool" data-zoom="out" aria-label="Zoom out" hidden>−</button>
+              <button type="button" class="tool" data-zoom="in" aria-label="Zoom in" hidden>+</button>
+              <button type="button" class="tool" data-zoom="mode" id="modeBtn" aria-pressed="false">True scale</button>
+            </span>
+          </div>
+          <div class="boardnote game-only" id="boardNote" hidden><b>Pick a client to start building</b><span>Each client has different goals. Choose one from the list.</span></div>
+          <div class="popover" id="pop" hidden>
+            <div class="pophead"><b id="popTitle">Section</b><span id="popSub"></span></div>
+            <div class="popbtns">
+              <button type="button" class="tool" data-pop="hill">+ Hill after</button>
+              <button type="button" class="tool" data-pop="loop">+ Loop after</button>
+              <button type="button" class="tool danger" data-pop="del">Delete</button>
+            </div>
+          </div>
+        </div>
+        <div class="transport">
+          <button class="go" id="playBtn" type="button">Ride it</button>
+          <button class="open game-only" id="openBtn" type="button">Open to the public</button>
+          <button id="resetBtn" type="button">Back to station</button>
+          <span class="spacer"></span>
+          <label class="inline" for="speedSel">Playback
+            <select id="speedSel"><option value="0.5">½×</option><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select>
+          </label>
+          <label class="inline" for="followChk" id="followLbl"><input type="checkbox" id="followChk" checked> Follow train</label>
+        </div>
+        <div class="gauges">
+          <div class="gauge"><div class="k">Speed</div><div class="v" id="gSpeed">0<small>mph</small></div><div class="sub" id="gSpeedMs">0.0 m/s</div></div>
+          <div class="gauge"><div class="k">Height</div><div class="v" id="gHeight">0<small>m</small></div><div class="sub" id="gDist">0 m along track</div></div>
+          <div class="gauge"><div class="k" id="gGk">Rider feel</div><div class="v" id="gG">1.0<small>g</small></div><div class="sub" id="gGNote">sitting still</div></div>
+          <div class="gauge"><div class="k">Ride time</div><div class="v" id="gTime">0.0<small>s</small></div><div class="sub" id="gPhase">in the station</div></div>
+        </div>
+        <div class="energy">
+          <div class="ebar" aria-hidden="true"><div class="e-pe" id="ePE"></div><div class="e-ke" id="eKE"></div><div class="e-heat" id="eHeat"></div></div>
+          <div class="elegend"><span><i class="e-pe"></i>Height energy<span class="realnum"> (potential) <b id="ePEv">0</b> kJ</span></span><span><i class="e-ke"></i>Motion energy<span class="realnum"> (kinetic) <b id="eKEv">0</b> kJ</span></span><span><i class="e-heat"></i>Lost to friction &amp; brakes<span class="realnum"> <b id="eHeatv">0</b> kJ</span></span></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Ride trace">
+        <div class="charthead">
+          <h2>Ride trace</h2>
+          <div class="legend"><span><i style="background:var(--ink)"></i><span id="lgG">rider feel</span></span><span><i style="background:var(--accent)"></i>speed</span><span><i style="background:color-mix(in srgb,var(--bad) 30%,transparent);height:9px"></i>Ouch! zone</span></div>
+        </div>
+        <canvas id="chartCv" aria-label="Graph of g-force and speed over the ride"></canvas>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel report sandbox-only" aria-label="Inspection report" id="report"></section>
+      <section class="panel report game-only" aria-label="Goals" id="gamePanel"></section>
+
+      <section class="panel mycoaster" aria-label="Your coaster" id="coasterPanel">
+        <h2>Your coaster</h2>
+        <div class="field">
+          <label for="cNameIn">Coaster name</label><output id="cNameCount"></output>
+          <input type="text" id="cNameIn" maxlength="30" placeholder="Name your coaster" autocomplete="off">
+        </div>
+        <div class="simplectl sandbox-only">
+          <div class="segrow"><span>Track</span><div class="seg" id="segMu"><button type="button" data-mu="0.008">Smooth</button><button type="button" data-mu="0.015">Normal</button><button type="button" data-mu="0.025">Sticky</button></div></div>
+          <div class="segrow"><span>Train</span><div class="seg" id="segMass"><button type="button" data-mass="900">Empty</button><button type="button" data-mass="1500">Half full</button><button type="button" data-mass="2400">Full</button></div></div>
+        </div>
+        <canvas id="cPreview" aria-label="Preview of your train"></canvas>
+        <div class="pickrow"><span class="pklabel">Mascot</span><div class="mascots" id="mascotPick"></div></div>
+        <div class="segrow"><span>Style</span><div class="seg" id="mascotMode"><button type="button" data-mm="ride">Rides up front</button><button type="button" data-mm="car">Animal car</button></div></div>
+        <div class="segrow"><span>Train color</span><div class="sw" id="swTrain"></div></div>
+        <div class="segrow"><span>Track color</span><div class="sw" id="swTrack"></div></div>
+      </section>
+
+      <section class="panel build" aria-label="Build sheet">
+        <h2>Build sheet</h2>
+        <p class="note">You can shape the track by dragging on it. Click any section here or on the track for exact sliders.</p>
+        <div class="game-only budget" id="budgetBox"></div>
+        <div class="presetrow sandbox-only">
+          <select id="presetSel" aria-label="Start from a preset">
+            <option value="">Start from a preset…</option>
+            <option value="starter">Starter coaster</option>
+            <option value="camel">Camelback airtime</option>
+            <option value="tight">Too tight (fix me)</option>
+            <option value="tall">Hill too tall (fix me)</option>
+            <option value="giga">Giga drop</option>
+          </select>
+          <button type="button" id="loadPreset">Load</button>
+        </div>
+
+        <div class="field">
+          <label for="liftIn">Lift hill height</label><output id="liftOut"></output>
+          <input type="range" id="liftIn" min="10" max="100" step="1">
+          <div class="hint">The chain pulls the train to the top. This is all the energy the ride ever gets.</div>
+        </div>
+
+        <ol class="els" id="els"></ol>
+        <div class="adds">
+          <button type="button" id="addSeg">+ Hill or drop</button>
+          <button type="button" id="addLoop">+ Loop</button>
+        </div>
+
+        <div class="game-only upgrades" id="upgrades"></div>
+        <div class="field sandbox-only realctl">
+          <label for="massIn">Train mass</label><output id="massOut"></output>
+          <input type="range" id="massIn" min="300" max="6000" step="50">
+        </div>
+        <div class="field sandbox-only realctl">
+          <label for="muIn">Rolling friction (μ)</label><output id="muOut"></output>
+          <input type="range" id="muIn" min="0" max="0.04" step="0.001">
+        </div>
+        <label class="inline sandbox-only realctl" for="dragChk"><input type="checkbox" id="dragChk"> Air resistance</label>
+        <p class="note">Your designs and progress save in this browser automatically.</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<section id="launch" class="launch-only" aria-label="Launch Lab">
+  <div class="lhead">
+    <div class="lintro"><h2>Launch Lab</h2><p>Magnetic motors push the train down a 40 m launch track. You do the math. Your answer becomes the real motor, train, or setting, so if the math is off, the ride shows it.</p></div>
+    <ol class="mchips" id="lMissions" aria-label="Missions"></ol>
+  </div>
+  <div class="main">
+    <div class="col">
+      <section class="panel stage">
+        <canvas id="lCv" aria-label="Side view of the launch coaster"></canvas>
+        <div class="lstate" id="lState" aria-live="polite"></div>
+        <div class="gauges">
+          <div class="gauge"><div class="k">Force</div><div class="v" id="lgF">?</div><div class="sub" id="lgFs">motor push</div></div>
+          <div class="gauge"><div class="k">Mass</div><div class="v" id="lgM">?</div><div class="sub">train + riders</div></div>
+          <div class="gauge"><div class="k">Acceleration</div><div class="v" id="lgA">?</div><div class="sub" id="lgAs">speed change per second</div></div>
+          <div class="gauge"><div class="k">Speed</div><div class="v" id="lgV">0<small>m/s</small></div><div class="sub" id="lgVs">in the station</div></div>
+        </div>
+        <div class="transport">
+          <button type="button" id="lReplay" disabled>Watch again</button>
+          <span class="spacer"></span>
+          <label class="inline" for="lSpeed">Playback
+            <select id="lSpeed"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select>
+          </label>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="charthead"><h2>Launch log</h2><button type="button" class="linkbtn" id="lClearLog">Clear log</button></div>
+        <div class="logwrap"><table class="log"><thead><tr><th>#</th><th>Mission</th><th>Force</th><th>Mass</th><th>Acceleration</th><th>What happened</th></tr></thead><tbody id="lLog"></tbody></table></div>
+        <p class="note" id="lLogNote">Every launch lands here. Look for patterns: what happens to acceleration when force doubles? When mass doubles?</p>
+      </section>
+    </div>
+    <div class="col">
+      <section class="panel lcard" id="lCard"></section>
+    </div>
+  </div>
+</section>
+
+<section id="newton" class="newton-only" aria-label="Newton's Laws">
+  <div class="lhead">
+    <div class="lintro"><h2>Newton&#8217;s Laws</h2><p>Ride your own coaster with an inspector who stops at key moments, or solve quick cases from cars, sports, rockets and more. Answer on screen, then explain it on paper using the sentence stems.</p></div>
+    <div class="seg nseg" id="nSeg"><button type="button" data-nm="inspect" aria-pressed="true">Inspect my coaster</button><button type="button" data-nm="cases" aria-pressed="false">Quick cases</button></div>
+  </div>
+  <div class="main">
+    <div class="col">
+      <section class="panel stage" id="nStage">
+        <div class="stagehead"><span class="cname" id="nName"></span></div>
+        <canvas id="nCv" aria-label="Your coaster with the forces on the train"></canvas>
+        <div class="lstate" id="nState" aria-live="polite"></div>
+        <div class="transport">
+          <button type="button" id="nReplay" disabled>Replay to this stop</button>
+          <span class="spacer"></span>
+          <label class="inline" for="nSpeed">Playback
+            <select id="nSpeed"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select>
+          </label>
+        </div>
+      </section>
+      <section class="panel" id="nCaseGrid" hidden>
+        <div class="charthead"><h2>Case file</h2><span class="note" id="nScore"></span></div>
+        <ol class="mchips casechips" id="nChips" aria-label="Cases"></ol>
+      </section>
+    </div>
+    <div class="col">
+      <section class="panel lcard" id="nCard"></section>
+    </div>
+  </div>
+</section>
+
+<div class="modal" id="modal" hidden><div class="mpanel" role="dialog" aria-modal="true" aria-labelledby="mTitle"><h3 id="mTitle"></h3><div id="mBody"></div><div class="mbtns" id="mBtns"></div></div></div>
+
+<script id="physics">
+const G = 9.81, DS = 0.25, STATION_H = 1.5, BRAKE_A = 4.5, BRAKE_LEN = 45;
+const BRAKE_MAX = Math.sqrt(2 * BRAKE_A * (BRAKE_LEN - 4)); // fastest entry the brakes can stop
+
+function autoLen(dh){ return Math.round(Math.max(18, 2.2 * Math.abs(dh) + 12)); }
+
+function buildTrack(d){
+  const raw = []; let x = 0, y = STATION_H;
+  const marks = [];
+  const add = (px, py) => raw.push([px, py]);
+  const flat = (L) => { const n = Math.ceil(L / 0.1); for (let i = 0; i < n; i++) add(x + L * i / n, y); x += L; };
+  const seg = (y1, L) => {
+    const y0 = y, n = Math.max(4, Math.ceil(L / 0.08));
+    for (let i = 0; i < n; i++){ const t = i / n; add(x + L * t, y0 + (y1 - y0) * (1 - Math.cos(Math.PI * t)) / 2); }
+    x += L; y = y1;
+  };
+  const loop = (H) => {
+    // teardrop: radius shrinks toward the top (R = a at the top, 4a at the bottom)
+    const a = H / 5, b = 3 * a, n = 2400, dth = 2 * Math.PI / n;
+    let px = x, py = y;
+    for (let i = 0; i < n; i++){
+      add(px, py);
+      const th = (i + 0.5) * dth, R = a + b * (1 + Math.cos(th)) / 2;
+      px += R * Math.cos(th) * dth; py += R * Math.sin(th) * dth;
+    }
+    x = px; y = y;
+  };
+  const mark = (label, kind, idx) => marks.push({ ri: raw.length, label, kind, idx });
+
+  mark('Station', 'station', -1); flat(18);
+  mark('Lift hill', 'lift', -1); seg(d.lift, Math.max(22, 1.5 * d.lift));
+  const liftRi = raw.length;
+  d.els.forEach((el, i) => {
+    if (el.type === 'loop'){ mark('Loop', 'loop', i); loop(el.h); }
+    else { mark(el.h < y ? 'Drop' : el.h > y ? 'Climb' : 'Straight', 'seg', i); seg(el.h, el.len); }
+  });
+  mark('Brakes', 'brakes', -1); const brakeRi = raw.length; flat(BRAKE_LEN);
+  add(x, y);
+
+  // arc length of raw polyline
+  const cum = new Float64Array(raw.length);
+  for (let i = 1; i < raw.length; i++) cum[i] = cum[i - 1] + Math.hypot(raw[i][0] - raw[i - 1][0], raw[i][1] - raw[i - 1][1]);
+  const total = cum[raw.length - 1];
+  const n = Math.floor(total / DS) + 1;
+  const X = new Float64Array(n), Y = new Float64Array(n);
+  let j = 0;
+  for (let i = 0; i < n; i++){
+    const s = i * DS;
+    while (j < raw.length - 2 && cum[j + 1] < s) j++;
+    const L = cum[j + 1] - cum[j] || 1, t = Math.min(1, Math.max(0, (s - cum[j]) / L));
+    X[i] = raw[j][0] + (raw[j + 1][0] - raw[j][0]) * t;
+    Y[i] = raw[j][1] + (raw[j + 1][1] - raw[j][1]) * t;
+  }
+  const TH = new Float64Array(n);
+  for (let i = 0; i < n; i++){
+    const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1);
+    TH[i] = Math.atan2(Y[b] - Y[a], X[b] - X[a]);
+  }
+  for (let i = 1; i < n; i++){ while (TH[i] - TH[i - 1] > Math.PI) TH[i] -= 2 * Math.PI; while (TH[i] - TH[i - 1] < -Math.PI) TH[i] += 2 * Math.PI; }
+  const K0 = new Float64Array(n), K = new Float64Array(n);
+  for (let i = 0; i < n; i++){ const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1); K0[i] = (TH[b] - TH[a]) / ((b - a) * DS); }
+  for (let i = 0; i < n; i++){ let sum = 0, c = 0; for (let k = -2; k <= 2; k++){ const q = i + k; if (q >= 0 && q < n){ sum += K0[q]; c++; } } K[i] = sum / c; }
+
+  const sections = marks.map((m, i) => ({ ...m, s0: cum[m.ri] || 0, s1: i + 1 < marks.length ? cum[marks[i + 1].ri] : total }));
+  const inLoop = new Uint8Array(n);
+  sections.filter(s => s.kind === 'loop').forEach(s => { for (let i = Math.floor(s.s0 / DS); i <= Math.ceil(s.s1 / DS) && i < n; i++) inLoop[i] = 1; });
+  return { n, X, Y, TH, K, total, liftEnd: cum[liftRi], brakeStart: cum[brakeRi], sections, inLoop, top: d.lift };
+}
+
+function at(T, s){
+  const f = Math.max(0, Math.min(T.n - 1.001, s / DS)), i = Math.floor(f), t = f - i;
+  const th = T.TH[i] + (T.TH[i + 1] - T.TH[i]) * t;
+  return { x: T.X[i] + (T.X[i + 1] - T.X[i]) * t, y: T.Y[i] + (T.Y[i + 1] - T.Y[i]) * t, th, kap: T.K[i] + (T.K[i + 1] - T.K[i]) * t };
+}
+
+function sectionAt(T, s){ return T.sections.find(x => s >= x.s0 && s < x.s1) || T.sections[T.sections.length - 1]; }
+
+function simulate(T, d){
+  const dt = 1 / 240, m = d.mass, mu = d.mu, c = d.dragC != null ? d.dragC : (d.drag ? 0.6 : 0), LIFT_V = 5;
+  let s = 0, v = 0, t = 0, nextRec = 0, restT = 0;
+  const frames = [];
+  const gAt = new Float32Array(T.n).fill(NaN);
+  const E0 = 0.5 * LIFT_V * LIFT_V + G * T.top;
+  let stall = null, done = false, peakHeat = 0, crash = null;
+  let maxV = 0, maxG = -9, minG = 9, sMax = 0, sMin = 0, air = 0, brakeV = 0, drops = 0, floatT = 0, inFloat = false;
+  while (t < 300){
+    const k = at(T, s);
+    const ny = Math.cos(k.th), ty = Math.sin(k.th);
+    let gf;
+    if (s < T.liftEnd && !stall){
+      v = LIFT_V; gf = v * v * k.kap / G + ny; s += v * dt;
+    } else {
+      gf = v * v * k.kap / G + ny;
+      let a = -G * ty;
+      const fr = mu * G * Math.abs(gf) + c * v * v / m;
+      if (Math.abs(v) < 0.02 && Math.abs(a) <= mu * G * Math.abs(gf) + 1e-6){ a = 0; v = 0; }
+      else a -= Math.sign(v || a) * fr;
+      if (s >= T.brakeStart && v > 0){
+        if (!brakeV) brakeV = v;
+        if (v > 2.2) a = -BRAKE_A; else { a = 0; v = 2.2; }
+      }
+      const vOld = v; v += a * dt;
+      if (!stall && vOld > 0 && v <= 0 && s < T.brakeStart){ stall = { s, t }; }
+      s += v * dt;
+      if (s < T.liftEnd){ s = T.liftEnd; v = 0; }
+      if (s >= T.total - 3){
+        if (v > 3){ crash = { v, t, s: T.total - 3 }; s = T.total - 3; break; }
+        s = T.total - 3; v = 0; done = true;
+      }
+      if (stall){ restT = Math.abs(v) < 0.05 ? restT + dt : 0; }
+    }
+    if (!stall && s >= T.liftEnd){
+      const i = Math.round(s / DS); if (i < T.n) gAt[i] = gf;
+      if (v > maxV) maxV = v;
+      if (s < T.brakeStart){
+        if (gf > maxG){ maxG = gf; sMax = s; }
+        if (gf < minG){ minG = gf; sMin = s; }
+        if (gf < 0.2){ air += dt; floatT += dt; if (floatT >= 0.2 && !inFloat){ inFloat = true; drops++; } }
+        else { floatT = 0; inFloat = false; }
+      }
+    }
+    const e = 0.5 * v * v + G * k.y;
+    const heat = s >= T.liftEnd ? Math.max(peakHeat, E0 - e) : 0; peakHeat = heat;
+    if (t >= nextRec || done){ frames.push({ t, s, v, gf, y: k.y, heat: heat * m }); nextRec += 1 / 60; }
+    if (done) break;
+    if (stall && (restT > 1.5 || t - stall.t > 40)) break;
+    t += dt;
+  }
+  if (crash){
+    // the train smashes through the buffer stop and launches off the end of the track
+    const end = at(T, T.total - 3);
+    let x = end.x, y = end.y + 0.8, vx = crash.v * 0.85, vy = crash.v * 0.42, ft = 0;
+    const heatNow = frames.length ? frames[frames.length - 1].heat : 0;
+    while (y > 0.4 && ft < 12){
+      x += vx * (1 / 60); y += vy * (1 / 60); vy -= G / 60; ft += 1 / 60; t += 1 / 60;
+      frames.push({ t, s: T.total - 3, v: Math.hypot(vx, vy), gf: 0, y, heat: heatNow, fly: { x, y, th: Math.atan2(vy, vx), age: ft } });
+    }
+    crash.x = x; crash.apex = Math.max(...frames.filter(q => q.fly).map(q => q.fly.y), end.y);
+    for (let b = 0; b < 100; b++){ t += 1 / 60; frames.push({ t, s: T.total - 3, v: 0, gf: 1, y: 0, heat: heatNow + 0.5 * m * crash.v * crash.v, boom: { x, age: b / 60 } }); }
+  }
+  const loops = d.els.filter(e => e.type === 'loop').length;
+  return { frames, gAt, stall, crash, done, maxV, maxG, minG, sMax, sMin, air, drops, brakeV, loops, E0: E0 * m, tEnd: t, mass: m };
+}
+
+/* ---------- Launch Lab physics (g = 10, frictionless magnetic track) ---------- */
+const LG = 10, LLAUNCH = 40, LBRAKE = 40, RIDER_MAX = 15;
+function lpath(H){
+  const W = Math.max(36, H * 2.2), t0 = 65, t1 = t0 + W, b0 = t1 + 15, b1 = b0 + LBRAKE;
+  const X = [], Y = [];
+  for (let i = 0, x = 0; x <= b1 + 1e-9; i++, x = i * 0.1){
+    let y = 1; if (x > t0 && x < t1){ const u = (x - t0) / W; y = 1 + H * (1 - Math.cos(2 * Math.PI * u)) / 2; }
+    X.push(x); Y.push(y);
+  }
+  const cum = new Float64Array(X.length);
+  for (let i = 1; i < X.length; i++) cum[i] = cum[i - 1] + Math.hypot(X[i] - X[i - 1], Y[i] - Y[i - 1]);
+  const sAtX = x => cum[Math.min(X.length - 1, Math.round(x / 0.1))];
+  return { X, Y, cum, total: cum[X.length - 1], H, W, t0, t1, b0, b1, sT0: sAtX(t0), sT1: sAtX(t1), sB0: sAtX(b0) };
+}
+function lat(P, s){
+  s = Math.max(0, Math.min(P.total, s));
+  let lo = 0, hi = P.cum.length - 1;
+  while (hi - lo > 1){ const mid = (lo + hi) >> 1; if (P.cum[mid] <= s) lo = mid; else hi = mid; }
+  const L = P.cum[hi] - P.cum[lo] || 1, t = (s - P.cum[lo]) / L;
+  return { x: P.X[lo] + (P.X[hi] - P.X[lo]) * t, y: P.Y[lo] + (P.Y[hi] - P.Y[lo]) * t, th: Math.atan2(P.Y[hi] - P.Y[lo], P.X[hi] - P.X[lo]) };
+}
+function lsim(P, F, m, Fb){
+  const a = F / m, b = Fb / m, dt = 1 / 240;
+  let s = 10, v = 0, t = 0, rb = false, next = 0, res = null, maxY = 1;
+  const frames = [];
+  for (let i = 0; i < 36; i++){ frames.push({ t, s, v: 0, acc: 0, force: 0, phase: 'station' }); t += 1 / 60; }
+  next = t;
+  while (!res){
+    const k = lat(P, s), sin = Math.sin(k.th);
+    let acc = -LG * sin, force = 0, phase;
+    if (!rb && v >= 0 && s >= 10 && s < 10 + LLAUNCH){ acc += a; force = F; phase = 'launch'; }
+    else if (!rb && s >= P.sB0 && v > 0){ acc -= b; force = -Fb; phase = 'brake'; }
+    else if (rb && s < 10 + LLAUNCH){ acc = Math.max(3, v * v / (2 * Math.max(1, s - 6))); phase = 'catch'; }
+    else phase = rb ? 'rollback' : s < P.sT0 ? 'coast' : s < P.sT1 ? (sin > 0.03 ? 'up' : sin < -0.03 ? 'down' : 'top') : 'coast';
+    v += acc * dt;
+    if (phase === 'brake' && v <= 0){ v = 0; res = 'ok'; }
+    if (!res && !rb && v < 0) rb = true;
+    if (rb && phase === 'catch' && v >= 0){ v = 0; res = 'rollback'; }
+    s += v * dt; t += dt;
+    if (k.y > maxY) maxY = k.y;
+    if (s >= P.total){ res = 'crash'; s = P.total; }
+    else if (!rb && s >= P.sB0 && v <= 0){ v = 0; res = 'ok'; }
+    else if (!rb && t > 12 && s < 10 + LLAUNCH) res = 'crawl';
+    else if (t > 60) res = rb ? 'rollback' : 'crawl';
+    if (t >= next || res){ frames.push({ t, s, v, acc, force, phase }); next += 1 / 60; }
+  }
+  const endV = v;
+  if (res === 'crash'){
+    const e = lat(P, P.total), vf = Math.min(endV, 40);
+    let x = e.x, y = e.y + 0.8, vx = vf * 0.85, vy = vf * 0.42, ft = 0;
+    while (y > 0.4 && ft < 10){ x += vx / 60; y += vy / 60; vy -= LG / 60; ft += 1 / 60; t += 1 / 60; frames.push({ t, s: P.total, v: Math.hypot(vx, vy), acc: -LG, force: 0, phase: 'fly', fly: { x, y, th: Math.atan2(vy, vx), age: ft } }); }
+    for (let i = 0; i < 100; i++){ t += 1 / 60; frames.push({ t, s: P.total, v: 0, acc: 0, force: 0, phase: 'boom', boom: { x, age: i / 60 } }); }
+  } else {
+    for (let i = 0; i < 40; i++){ t += 1 / 60; frames.push({ t, s, v: 0, acc: 0, force: 0, phase: res === 'ok' ? 'stopped' : res === 'crawl' ? 'crawl' : 'station' }); }
+  }
+  if (res === 'ok' && a > RIDER_MAX) res = 'ouch';
+  return { frames, res, a, endV, maxY };
+}
+
+function thrillScore(r){
+  const mph = r.maxV * 2.237;
+  const pts = Math.min(4, mph / 80 * 4) + Math.min(3, r.air * 0.9) + Math.min(2, r.loops) + Math.min(1, Math.max(0, (r.maxG - 2) / 2));
+  return Math.max(0, Math.min(10, pts));
+}
+</script>
+
+<script>
+(() => {
+const $ = (id) => document.getElementById(id);
+let uid = 1;
+const S = (h, len) => ({ id: uid++, type: 'seg', h, len });
+const L = (h) => ({ id: uid++, type: 'loop', h });
+
+const PRESETS = {
+  starter: () => ({ lift: 40, mass: 1500, mu: 0.015, drag: true, els: [S(6, 70), S(14, 34), L(20), S(4, 44), S(12, 34), S(3, 34), S(18, 40)] }),
+  camel:   () => ({ lift: 45, mass: 1500, mu: 0.015, drag: true, els: [S(4, 80), S(30, 70), S(6, 70), S(20, 50), S(5, 50), S(12, 34), S(3, 34), S(20, 44)] }),
+  tight:   () => ({ lift: 45, mass: 1500, mu: 0.015, drag: true, els: [S(3, 35), S(18, 24), S(4, 26), L(14), S(3, 30)] }),
+  tall:    () => ({ lift: 35, mass: 1500, mu: 0.015, drag: true, els: [S(4, 66), S(38, 80), S(5, 80)] }),
+  giga:    () => ({ lift: 90, mass: 2200, mu: 0.012, drag: true, els: [S(4, 250), S(55, 130), S(10, 150), L(52), S(30, 80), S(8, 80), S(16, 70), S(3, 70), S(40, 90)] }),
+};
+
+const KEY = 'coasterlab-design-v1';
+function loadSaved(){
+  try { const raw = localStorage.getItem(KEY); if (!raw) return null; const d = JSON.parse(raw);
+    if (!d || !Array.isArray(d.els)) return null; d.els.forEach(e => e.id = uid++); return d; } catch (e) { return null; }
+}
+function save(){ try { if (MODE === 'sandbox') localStorage.setItem(KEY, JSON.stringify(D)); else saveGame(); } catch (e) {} }
+
+let REAL = false;
+try { REAL = localStorage.getItem('coasterlab-real') === '1'; } catch (e) {}
+function feel(g){
+  if (g > 5 || g < -1.5) return { k: 'bad', name: 'Ouch!', face: '🤢', note: 'unsafe: way too intense' };
+  if (g > 3.5) return { k: 'warn', name: 'Intense', face: '😬', note: 'squashed into the seat' };
+  if (g < -1) return { k: 'warn', name: 'Intense', face: '😬', note: 'yanked up against the bar' };
+  if (g < 0.2) return { k: 'air', name: 'Floating', face: '😮', note: 'stomach drop!' };
+  return { k: 'ok', name: 'Comfy', face: '😀', note: g > 1.6 ? 'pressed into the seat' : g < 0.8 ? 'feeling light' : 'normal weight' };
+}
+function rideFeel(r){
+  if (r.maxG > 5 || r.minG < -1.5) return feel(9);
+  if (r.maxG > 3.5) return feel(4);
+  if (r.minG < -1) return feel(-1.2);
+  return feel(1);
+}
+const STYLEKEY = 'coasterlab-style';
+const STYLE_DEFAULT = { train: null, track: null, name: '', mascot: 'capybara', mascotMode: 'ride' };
+let STYLE = { ...STYLE_DEFAULT };
+try { STYLE = Object.assign(STYLE, JSON.parse(localStorage.getItem(STYLEKEY)) || {}); } catch (e) {}
+const TRAIN_COLORS = [[null, 'Classic'], ['#e8551b', 'Orange'], ['#f2b10a', 'Sunshine'], ['#4fae32', 'Lime'], ['#13a0a0', 'Teal'], ['#3d84de', 'Sky'], ['#7b4bd6', 'Purple'], ['#e23d8c', 'Hot pink']];
+const TRACK_COLORS = [[null, 'Classic'], ['#c8323a', 'Cherry'], ['#13908f', 'Teal'], ['#6a43c2', 'Purple'], ['#c9940a', 'Gold'], ['#6b7a8f', 'Steel']];
+let SANDBOX = loadSaved() || PRESETS.starter();
+let D = SANDBOX;
+let MODE = 'game', pendingRide = null;
+let T, R, playing = false, playT = 0, lastTs = 0, cam = null;
+
+/* ---------- theme colors for canvas ---------- */
+let C = {};
+function readColors(){
+  const cs = getComputedStyle(document.documentElement);
+  ['paper','grid','grid-major','ink','muted','track','accent','car','ground','support','ok','warn','bad','air','panel','line'].forEach(k => C[k] = cs.getPropertyValue('--' + k).trim());
+}
+readColors();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { readColors(); drawAll(); });
+new MutationObserver(() => { readColors(); drawAll(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+/* ---------- build sheet ---------- */
+function bindRange(id, outId, get, set, fmt){
+  const el = $(id); el.value = get();
+  const out = $(outId); out.textContent = fmt(get());
+  el.addEventListener('input', () => { set(+el.value); out.textContent = fmt(+el.value); changed(); });
+}
+function syncGlobals(){
+  if (typeof syncSeg === 'function' && $('segMu')) syncSeg();
+  $('liftIn').value = D.lift; $('liftOut').textContent = D.lift + ' m';
+  $('massIn').value = D.mass; $('massOut').textContent = D.mass.toLocaleString() + ' kg';
+  $('muIn').value = D.mu; $('muOut').textContent = D.mu.toFixed(3);
+  $('dragChk').checked = D.drag;
+}
+bindRange('liftIn', 'liftOut', () => D.lift, v => D.lift = v, v => v + ' m');
+bindRange('massIn', 'massOut', () => D.mass, v => D.mass = v, v => v.toLocaleString() + ' kg');
+bindRange('muIn', 'muOut', () => D.mu, v => D.mu = v, v => v.toFixed(3));
+$('dragChk').addEventListener('change', e => { D.drag = e.target.checked; changed(); });
+
+let sel = null, drag = null, view = null, pan = null;
+const VZ = { mode: 'fit', z: 1, cx: null, cy: null, min: 0.2, canPan: false };
+function summary(el){ return el.type === 'loop' ? `${el.h} m tall` : `to ${el.h} m over ${el.len} m`; }
+function select(id){
+  sel = id; renderEls(); positionPop(); drawAll();
+}
+function insertEl(type, at){
+  // at = index to insert at
+  let el;
+  if (type === 'loop') el = L(18);
+  else {
+    const y0 = heightBefore(at), h = Math.max(0, y0 > 15 ? 4 : Math.min(D.lift - 8, y0 + 14));
+    el = S(h, autoLen(h - y0));
+  }
+  D.els.splice(at, 0, el); sel = el.id; renderEls(); changed();
+}
+function heightBefore(i){
+  let y = D.lift;
+  for (let k = 0; k < i; k++) if (D.els[k].type === 'seg') y = D.els[k].h;
+  return y;
+}
+function kindFor(el, i){
+  if (el.type === 'loop') return 'Loop';
+  const y0 = heightBefore(i);
+  return el.h < y0 ? 'Drop' : el.h > y0 ? 'Climb' : 'Straight';
+}
+function renderEls(){
+  const list = $('els');
+  const rows = [];
+  rows.push(`<li class="fixed"><span class="num">L</span><span>Lift hill to ${D.lift} m, then the train crests at walking speed</span></li>`);
+  D.els.forEach((el, i) => {
+    const k = kindFor(el, i);
+    const ctrls = el.type === 'loop'
+      ? `<div class="field"><label for="e${el.id}h">Loop height</label><output id="e${el.id}ho">${el.h} m</output>
+           <input type="range" id="e${el.id}h" data-i="${i}" data-k="h" min="8" max="60" step="1" value="${el.h}"></div>`
+      : `<div class="field"><label for="e${el.id}h">End height</label><output id="e${el.id}ho">${el.h} m</output>
+           <input type="range" id="e${el.id}h" data-i="${i}" data-k="h" min="0" max="100" step="1" value="${el.h}"></div>
+         <div class="field"><label for="e${el.id}l">Length</label><output id="e${el.id}lo">${el.len} m</output>
+           <input type="range" id="e${el.id}l" data-i="${i}" data-k="len" min="10" max="240" step="1" value="${el.len}"></div>`;
+    const open = sel === el.id;
+    rows.push(`<li class="el ${open ? 'sel' : ''}" id="row${el.id}" data-sel="${el.id}">
+      <div class="elhead"><span class="num">${i + 1}</span><span class="kind ${el.type === 'loop' ? 'loop' : ''}" id="k${el.id}">${k}</span><span class="sum" id="sum${el.id}">${summary(el)}</span><span class="spacer"></span>
+        <button type="button" class="mini" data-act="up" data-i="${i}" aria-label="Move section ${i + 1} up" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="mini" data-act="down" data-i="${i}" aria-label="Move section ${i + 1} down" ${i === D.els.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="mini" data-act="del" data-i="${i}" aria-label="Remove section ${i + 1}">✕</button></div>
+      ${open ? `<div class="ctrls">${ctrls}</div>` : ''}</li>`);
+  });
+  rows.push(`<li class="fixed"><span class="num">B</span><span>Brakes at the end of the track. They can stop a train going up to ${(BRAKE_MAX * 2.237).toFixed(0)} mph. Any faster and it flies off.</span></li>`);
+  list.innerHTML = rows.join('');
+}
+$('els').addEventListener('input', e => {
+  const t = e.target; if (t.type !== 'range') return;
+  const el = D.els[+t.dataset.i]; el[t.dataset.k] = +t.value;
+  $(t.id + 'o').textContent = t.value + ' m';
+  D.els.forEach((x, i) => { const n = $('k' + x.id); if (n) n.textContent = kindFor(x, i); const m = $('sum' + x.id); if (m) m.textContent = summary(x); });
+  changed();
+});
+$('els').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]');
+  if (!b){
+    if (e.target.closest('.ctrls')) return;
+    const li = e.target.closest('[data-sel]'); if (!li) return;
+    select(sel === +li.dataset.sel ? null : +li.dataset.sel); return;
+  }
+  const i = +b.dataset.i, a = b.dataset.act;
+  if (a === 'del'){ if (D.els[i].id === sel) sel = null; D.els.splice(i, 1); }
+  if (a === 'up' && i > 0) [D.els[i - 1], D.els[i]] = [D.els[i], D.els[i - 1]];
+  if (a === 'down' && i < D.els.length - 1) [D.els[i + 1], D.els[i]] = [D.els[i], D.els[i + 1]];
+  renderEls(); changed();
+});
+$('addSeg').addEventListener('click', () => insertEl('seg', D.els.length));
+$('addLoop').addEventListener('click', () => insertEl('loop', D.els.length));
+$('addBar').addEventListener('click', e => { const b = e.target.closest('[data-add]'); if (b) insertEl(b.dataset.add, D.els.length); });
+$('pop').addEventListener('click', e => {
+  const b = e.target.closest('[data-pop]'); if (!b || sel == null) return;
+  const i = D.els.findIndex(x => x.id === sel); if (i < 0) return;
+  if (b.dataset.pop === 'del'){ D.els.splice(i, 1); sel = null; renderEls(); changed(); }
+  else insertEl(b.dataset.pop === 'loop' ? 'loop' : 'seg', i + 1);
+});
+$('loadPreset').addEventListener('click', () => {
+  const p = $('presetSel').value; if (!PRESETS[p]) return;
+  D = PRESETS[p](); SANDBOX = D; sel = null; syncGlobals(); renderEls(); changed();
+});
+
+/* ---------- recompute ---------- */
+let pending = false;
+function changed(){
+  if (pendingRide) finishRide();
+  playing = false; playT = 0; if (!drag) cam = null; updatePlayBtn();
+  if (pending) return; pending = true;
+  requestAnimationFrame(() => { pending = false; recompute(); save(); });
+}
+function recompute(){
+  T = buildTrack(D); R = simulate(T, paramsNow());
+  if (MODE === 'game') renderGame(); else renderReport();
+  drawAll(); positionPop();
+}
+
+/* ---------- direct editing on the track ---------- */
+function handles(){
+  // world positions of every draggable dot
+  const out = [];
+  const lift = T.sections.find(s => s.kind === 'lift');
+  const lp = at(T, lift.s1 - 0.01);
+  out.push({ kind: 'lift', id: 'lift', x: lp.x, y: D.lift, x0: at(T, lift.s0).x });
+  T.sections.forEach(sec => {
+    if (sec.idx < 0) return;
+    const el = D.els[sec.idx]; if (!el) return;
+    if (el.type === 'loop'){
+      const top = at(T, (sec.s0 + sec.s1) / 2), base = at(T, sec.s0);
+      out.push({ kind: 'loop', id: el.id, idx: sec.idx, x: top.x, y: top.y, baseY: base.y });
+    } else {
+      const start = at(T, sec.s0), end = at(T, sec.s1 - 0.01);
+      out.push({ kind: 'seg', id: el.id, idx: sec.idx, x: end.x, y: el.h, x0: start.x });
+    }
+  });
+  return out;
+}
+const toScreen = (x, y) => [view.ox + x * view.scX, view.groundY - y * view.scY];
+const toWorld = (px, py) => [(px - view.ox) / view.scX, (view.groundY - py) / view.scY];
+function canvasPt(e){ const r = $('trackCv').getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function hitHandle(px, py, slop){
+  let best = null, bd = slop;
+  handles().forEach(h => { const [X, Y] = toScreen(h.x, h.y); const d = Math.hypot(X - px, Y - py); if (d < bd){ bd = d; best = h; } });
+  return best;
+}
+function hitSection(px, py){
+  let bi = -1, bd = 14;
+  for (let i = 0; i < T.n; i += 2){ const [X, Y] = toScreen(T.X[i], T.Y[i]); const d = Math.hypot(X - px, Y - py); if (d < bd){ bd = d; bi = i; } }
+  if (bi < 0) return null;
+  const sec = sectionAt(T, bi * DS); return sec.idx >= 0 ? D.els[sec.idx]?.id ?? null : null;
+}
+function stopRide(){ if (playT > 0 || playing){ playing = false; playT = 0; cam = null; updatePlayBtn(); drawAll(); finishRide(); } }
+const cv = $('trackCv');
+cv.addEventListener('pointerdown', e => {
+  stopRide(); if (!view) return;
+  const [px, py] = canvasPt(e), slop = e.pointerType === 'touch' ? 26 : 14;
+  const h = hitHandle(px, py, slop);
+  if (h){
+    drag = { h, pid: e.pointerId }; cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing';
+    if (h.kind !== 'lift' && sel !== h.id){ sel = h.id; renderEls(); }
+    $('pop').hidden = true; e.preventDefault(); return;
+  }
+  const id = hitSection(px, py);
+  if (id != null){ select(id); return; }
+  pan = { pid: e.pointerId, px, py, cx0: VZ.cx ?? (cv.getBoundingClientRect().width / 2 - view.ox) / view.sc, cy0: VZ.cy ?? 0, moved: false };
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e => {
+  if (!view) return;
+  const [px, py] = canvasPt(e);
+  if (pan){
+    const dx = px - pan.px, dy = py - pan.py;
+    if (Math.abs(dx) + Math.abs(dy) > 4){ pan.moved = true; cv.style.cursor = 'grabbing'; }
+    if (pan.moved && VZ.mode !== 'fit'){ VZ.cx = pan.cx0 - dx / view.sc; VZ.cy = pan.cy0 + dy / view.sc; drawAll(); positionPop(); }
+    return;
+  }
+  if (!drag){ cv.style.cursor = hitHandle(px, py, 14) ? 'grab' : hitSection(px, py) != null ? 'pointer' : VZ.canPan && VZ.mode !== 'fit' ? 'grab' : 'default'; return; }
+  const [wx, wy] = toWorld(px, py), h = drag.h;
+  if (h.kind === 'lift') D.lift = Math.round(Math.max(10, Math.min(100, wy)));
+  else {
+    const el = D.els.find(x => x.id === h.id); if (!el) return;
+    if (h.kind === 'loop') el.h = Math.round(Math.max(8, Math.min(60, wy - h.baseY)));
+    else { el.h = Math.round(Math.max(0, Math.min(100, wy))); el.len = Math.round(Math.max(10, Math.min(240, wx - h.x0))); }
+  }
+  syncGlobals(); renderEls(); changed();
+});
+const endDrag = () => {
+  if (pan){ const moved = pan.moved; pan = null; cv.style.cursor = ''; if (!moved) select(null); return; }
+  if (!drag) return; drag = null; cv.style.cursor = ''; cam = null; drawAll(); positionPop(); };
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('keydown', e => {
+  if (sel == null) return;
+  const el = D.els.find(x => x.id === sel); if (!el) return;
+  const step = e.shiftKey ? 5 : 1;
+  if (e.key === 'Delete' || e.key === 'Backspace'){ D.els = D.els.filter(x => x.id !== sel); sel = null; renderEls(); changed(); e.preventDefault(); return; }
+  if (e.key === 'Escape'){ select(null); return; }
+  const lim = el.type === 'loop' ? [8, 60] : [0, 100];
+  if (e.key === 'ArrowUp') el.h = Math.min(lim[1], el.h + step);
+  else if (e.key === 'ArrowDown') el.h = Math.max(lim[0], el.h - step);
+  else if (e.key === 'ArrowRight' && el.type === 'seg') el.len = Math.min(240, el.len + step);
+  else if (e.key === 'ArrowLeft' && el.type === 'seg') el.len = Math.max(10, el.len - step);
+  else return;
+  e.preventDefault(); renderEls(); changed();
+});
+function zoomAt(px, py, factor){
+  if (!view) return;
+  stopRide();
+  const r = cv.getBoundingClientRect(), W = r.width, Hb = r.height - 26;
+  const [wx, wy] = toWorld(px, py);
+  const z0 = VZ.z, z1 = Math.max(VZ.min, Math.min(4, z0 * factor));
+  const sc1 = view.sc * z1 / z0;
+  VZ.z = z1; VZ.cx = wx - (px - W / 2) / sc1; VZ.cy = (py - Hb / 2) / sc1 + wy;
+  cam = null; drawAll(); positionPop();
+}
+cv.addEventListener('wheel', e => {
+  const [px, py] = canvasPt(e);
+  if (VZ.mode === 'fit') return;
+  if (e.ctrlKey){ e.preventDefault(); zoomAt(px, py, Math.exp(-e.deltaY * 0.01)); return; }
+  const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+  if (!dx || !view || playT > 0) return;
+  e.preventDefault();
+  VZ.cx = (VZ.cx ?? (cv.getBoundingClientRect().width / 2 - view.ox) / view.sc) + dx / view.sc; drawAll(); positionPop();
+}, { passive: false });
+document.querySelector('.zoom').addEventListener('click', e => {
+  const b = e.target.closest('[data-zoom]'); if (!b) return;
+  const r = cv.getBoundingClientRect();
+  if (b.dataset.zoom === 'mode'){ stopRide(); setMode(VZ.mode === 'fit' ? 'true' : 'fit'); return; }
+  zoomAt(r.width / 2, (r.height - 26) / 2, b.dataset.zoom === 'in' ? 1.4 : 1 / 1.4);
+});
+function setMode(m){
+  VZ.mode = m; VZ.z = 1; VZ.cx = null; VZ.cy = null; cam = null;
+  const fit = m === 'fit';
+  $('modeBtn').textContent = fit ? 'True scale' : 'Whole ride';
+  document.querySelectorAll('[data-zoom="in"],[data-zoom="out"]').forEach(b => b.hidden = fit);
+  $('followLbl').hidden = fit;
+  $('hint').textContent = fit ? 'Drag a dot to reshape · click a section for options' : 'True scale: loops and slopes look like the real thing · drag empty space to scroll';
+  try { localStorage.setItem('coasterlab-view', m); } catch (e) {}
+  drawAll(); positionPop();
+}
+function positionPop(){
+  const pop = $('pop');
+  if (sel == null || drag || !view || playT > 0){ pop.hidden = true; return; }
+  const i = D.els.findIndex(x => x.id === sel); if (i < 0){ pop.hidden = true; return; }
+  const h = handles().find(x => x.id === sel); if (!h){ pop.hidden = true; return; }
+  const el = D.els[i];
+  $('popTitle').textContent = `${i + 1} · ${kindFor(el, i)}`;
+  $('popSub').textContent = summary(el);
+  pop.hidden = false;
+  const box = $('canvasBox').getBoundingClientRect(), [X, Y] = toScreen(h.x, h.y);
+  const w = pop.offsetWidth, ht = pop.offsetHeight;
+  let left = Math.min(box.width - w - 8, Math.max(8, X - w / 2));
+  let top = Y - ht - 18; if (top < 48) top = Math.min(Y + 18, $('trackCv').offsetHeight - ht - 8);
+  pop.style.left = left + 'px'; pop.style.top = top + 'px';
+}
+
+/* ---------- report ---------- */
+function where(s){
+  const sec = sectionAt(T, s);
+  return sec.idx >= 0 ? `section ${sec.idx + 1} (${sec.label.toLowerCase()})` : sec.label.toLowerCase();
+}
+function renderReport(){
+  const checks = [];
+  const finish = !R.stall && !R.crash;
+  let hot = null;
+  const brakeMax = (BRAKE_MAX * 2.237).toFixed(0);
+  if (finish) checks.push(['ok', 'PASS', 'Stops safely at the end', `Hits the brakes at ${(R.brakeV * 2.237).toFixed(0)} mph. The brakes can handle up to ${brakeMax} mph.`]);
+  else if (R.crash){
+    hot = D.els.length - 1;
+    checks.push(['bad', 'FAIL', 'Flies off the end!', `It reaches the brakes at ${(R.brakeV * 2.237).toFixed(0)} mph, but they can only stop a train going ${brakeMax} mph or slower. End with a climb, so the train trades speed for height before the brakes.`]);
+  } else {
+    const sec = sectionAt(T, R.stall.s); hot = sec.idx;
+    const y = at(T, R.stall.s).y;
+    checks.push(['bad', 'FAIL', 'Train stalls', `It runs out of energy ${y.toFixed(0)} m up in ${where(R.stall.s)} and rolls back. Every hill after the lift has to be lower than ${D.lift} m, with room to spare for friction.`]);
+  }
+  const worstFeel = rideFeel(R);
+  if (!REAL){
+    if (worstFeel.k === 'ok') checks.push(['ok', 'PASS', '😀 Comfy the whole ride', 'No Intense or Ouch! moments. Riders feel pushed around, but nothing hurts.']);
+    else {
+      const high = R.maxG > 3.5, sAt = (R.maxG > 5 || (high && !(R.minG < -1.5))) ? R.sMax : R.sMin;
+      hot = hot ?? sectionAt(T, sAt).idx;
+      const why = sAt === R.sMax ? 'A tight curve at high speed squashes riders into their seats. Make that section longer or the drop before it smaller' + (sectionAt(T, sAt).kind === 'loop' ? ', or make the loop taller' : '') + '.'
+        : 'Going over a hilltop too fast yanks riders up out of their seats. Stretch that hill out or make it taller.';
+      checks.push([worstFeel.k === 'bad' ? 'bad' : 'warn', worstFeel.k === 'bad' ? 'FAIL' : 'CAUTION', `${worstFeel.face} ${worstFeel.name} moments`, `Worst spot is ${where(sAt)}. ${why}`]);
+    }
+  } else {
+    const g = R.maxG;
+    if (g <= 3.5) checks.push(['ok', 'PASS', `Max ${g.toFixed(1)} g pressing riders down`, 'Within the comfort range (3.5 g or less).']);
+    else {
+      const lvl = g <= 5 ? 'warn' : 'bad'; hot = hot ?? sectionAt(T, R.sMax).idx;
+      checks.push([lvl, lvl === 'warn' ? 'CAUTION' : 'FAIL', `Max ${g.toFixed(1)} g pressing riders down`, `Peak is in ${where(R.sMax)}. Above 3.5 g is intense, above 5 g is unsafe.`]);
+    }
+    const mg = R.minG;
+    if (mg >= -1) checks.push(['ok', 'PASS', `Min ${mg.toFixed(1)} g`, mg < 0.2 ? 'Riders float out of their seats, held safely by the lap bar.' : 'Riders stay pressed into their seats the whole time.']);
+    else {
+      const lvl = mg >= -1.5 ? 'warn' : 'bad'; hot = hot ?? sectionAt(T, R.sMin).idx;
+      checks.push([lvl, lvl === 'warn' ? 'CAUTION' : 'FAIL', `Min ${mg.toFixed(1)} g lifting riders up`, `Strongest in ${where(R.sMin)}. Below −1 g is intense, below −1.5 g is unsafe.`]);
+    }
+  }
+  const worst = checks.some(c => c[0] === 'bad') ? 'bad' : checks.some(c => c[0] === 'warn') ? 'warn' : 'ok';
+  const stampTxt = { ok: 'OPEN TO RIDERS', warn: 'NEEDS REVIEW', bad: 'CLOSED' }[worst];
+  const verdictTxt = { ok: 'Passed inspection. Ride it and see how it feels.', warn: 'It runs, but the inspector wants changes before opening day.', bad: 'Fix the failed checks before anyone rides this.' }[worst];
+  const score = finish ? thrillScore(R) : 0;
+  const names = [[3, 'Kiddie ride'], [5, 'Family coaster'], [7, 'Thrill ride'], [8.8, 'Scream machine'], [99, 'Legendary']];
+  const tname = finish ? names.find(n => score < n[0])[1] : 'No rating';
+  const rideT = finish ? R.frames.find(f => f.s >= T.brakeStart)?.t ?? R.tEnd : null;
+  $('report').innerHTML = `
+    <h2>Inspection report</h2>
+    <div class="verdict"><span class="stamp ${worst}">${stampTxt}</span><p>${verdictTxt}</p></div>
+    <ul class="checks">${checks.map(c => `<li><span class="tag ${c[0]}">${c[1]}</span><div><b>${c[2]}</b><span>${c[3]}</span></div></li>`).join('')}</ul>
+    <div class="stats">
+      <div class="stat"><div class="k">Top speed</div><div class="v">${(R.maxV * 2.237).toFixed(0)} mph</div></div>
+      <div class="stat"><div class="k">${REAL ? 'Airtime' : 'Stomach drops'}</div><div class="v">${REAL ? R.air.toFixed(1) + ' s' : R.drops}</div></div>
+      <div class="stat"><div class="k">Ride</div><div class="v">${rideT ? rideT.toFixed(0) + ' s' : '—'}</div></div>
+    </div>
+    <div class="thrill">
+      <div class="row"><h2>Thrill rating</h2><span class="name">${tname}</span></div>
+      <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="10" aria-valuenow="${score.toFixed(1)}" aria-label="Thrill rating"><div style="width:${score * 10}%"></div></div>
+      <div class="note">${finish ? (REAL ? score.toFixed(1) + ' / 10 from speed, airtime, loops and g-forces' : 'Based on speed, stomach drops, loops and how intense it feels') : 'A ride has to finish to get rated.'}</div>
+    </div>`;
+  document.querySelectorAll('.el.hot').forEach(n => n.classList.remove('hot'));
+  if (hot != null && hot >= 0 && D.els[hot]) $('row' + D.els[hot].id)?.classList.add('hot');
+}
+
+/* ---------- canvas helpers ---------- */
+function fitCanvas(cv){
+  const dpr = window.devicePixelRatio || 1, r = cv.getBoundingClientRect();
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (cv.width !== w || cv.height !== h){ cv.width = w; cv.height = h; }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, W: r.width, H: r.height };
+}
+function frameAt(t){
+  if (!R.frames.length) return null;
+  const i = Math.min(R.frames.length - 1, Math.max(0, Math.floor(t * 60)));
+  return R.frames[i];
+}
+function gClass(g){
+  if (isNaN(g)) return 'track';
+  if (g > 5 || g < -1.5) return 'bad';
+  if (g > 3.5 || g < -1) return 'warn';
+  if (g < 0.2) return 'air';
+  return 'track';
+}
+
+/* ---------- mascots ---------- */
+const MASCOTS = {
+  capybara: { name: 'Capybara', fur: '#a8743f', ear: 'round', earCol: '#8a5a2e', head: 'box', snout: 'capy', extra: 'orange' },
+  cat:      { name: 'Cat', fur: '#f2a24e', ear: 'point', inner: '#f8c9a8', snout: 'cat' },
+  dog:      { name: 'Puppy', fur: '#e2bd90', ear: 'flop', earCol: '#8f5f37', snout: 'dog' },
+  bunny:    { name: 'Bunny', fur: '#f4f0ea', ear: 'long', inner: '#f5b5c8', snout: 'bunny' },
+  frog:     { name: 'Frog', fur: '#6cbb4c', ear: 'frog', snout: 'frog' },
+  duck:     { name: 'Duck', fur: '#f7d43c', ear: 'tuft', snout: 'duck' },
+  panda:    { name: 'Panda', fur: '#f8f8f5', ear: 'round', earCol: '#26262b', snout: 'panda', patches: true },
+  axolotl:  { name: 'Axolotl', fur: '#f6a9c6', ear: 'gills', gill: '#e0548c', snout: 'axo' },
+};
+const OUTLINE = '#2b2119';
+function drawMascot(ctx, kind, x, y, r, dazed){
+  const M = MASCOTS[kind]; if (!M) return;
+  ctx.save(); ctx.translate(x, y);
+  const lw = Math.max(1, r * 0.09);
+  ctx.lineWidth = lw; ctx.strokeStyle = OUTLINE; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const blob = (bx, by, rx, ry, fill, rot = 0, stroke = true) => { ctx.beginPath(); ctx.ellipse(bx, by, rx, ry, rot, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); if (stroke) ctx.stroke(); };
+  // ears and things behind the head
+  if (M.ear === 'round') [-1, 1].forEach(d => { blob(d * 0.62 * r, -0.72 * r, 0.27 * r, 0.27 * r, M.earCol || M.fur); });
+  if (M.ear === 'point') [-1, 1].forEach(d => {
+    ctx.beginPath(); ctx.moveTo(d * 0.18 * r, -0.85 * r); ctx.lineTo(d * 0.72 * r, -1.28 * r); ctx.lineTo(d * 0.9 * r, -0.4 * r); ctx.closePath(); ctx.fillStyle = M.fur; ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(d * 0.36 * r, -0.82 * r); ctx.lineTo(d * 0.7 * r, -1.08 * r); ctx.lineTo(d * 0.78 * r, -0.55 * r); ctx.closePath(); ctx.fillStyle = M.inner; ctx.fill(); });
+  if (M.ear === 'long') [-1, 1].forEach(d => { blob(d * 0.36 * r, -1.25 * r, 0.24 * r, 0.62 * r, M.fur, d * 0.12); blob(d * 0.36 * r, -1.22 * r, 0.11 * r, 0.44 * r, M.inner, d * 0.12, false); });
+  if (M.ear === 'flop') [-1, 1].forEach(d => blob(d * 0.86 * r, -0.12 * r, 0.27 * r, 0.56 * r, M.earCol, d * -0.35));
+  if (M.ear === 'frog') [-1, 1].forEach(d => blob(d * 0.45 * r, -0.72 * r, 0.36 * r, 0.34 * r, M.fur));
+  if (M.ear === 'gills') [-1, 1].forEach(d => { ctx.save(); ctx.strokeStyle = M.gill; ctx.lineWidth = Math.max(1.5, r * 0.17);
+    [-0.45, 0, 0.45].forEach((o, i) => { ctx.beginPath(); ctx.moveTo(d * 0.75 * r, (o * 0.6 - 0.2) * r); ctx.lineTo(d * (1.28 - Math.abs(o) * 0.25) * r, (o - 0.35) * r); ctx.stroke(); });
+    ctx.restore(); });
+  // head
+  ctx.beginPath();
+  if (M.head === 'box'){ ctx.roundRect ? ctx.roundRect(-0.95 * r, -0.88 * r, 1.9 * r, 1.78 * r, 0.62 * r) : ctx.rect(-0.95 * r, -0.88 * r, 1.9 * r, 1.78 * r); }
+  else ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = M.fur; ctx.fill(); ctx.stroke();
+  if (M.ear === 'tuft'){ ctx.beginPath(); ctx.moveTo(-0.1 * r, -0.95 * r); ctx.quadraticCurveTo(0, -1.4 * r, 0.22 * r, -1.25 * r); ctx.stroke(); }
+  if (M.patches) [-1, 1].forEach(d => blob(d * 0.38 * r, -0.08 * r, 0.24 * r, 0.3 * r, '#26262b', d * -0.5, false));
+  // cheeks
+  ctx.globalAlpha = 0.45; [-1, 1].forEach(d => blob(d * 0.58 * r, 0.28 * r, 0.15 * r, 0.11 * r, '#ff7f9c', 0, false)); ctx.globalAlpha = 1;
+  // eyes
+  const eye = (ex, ey) => {
+    if (dazed){ ctx.lineWidth = Math.max(1.2, r * 0.1); const k = 0.1 * r; ctx.beginPath(); ctx.moveTo(ex - k, ey - k); ctx.lineTo(ex + k, ey + k); ctx.moveTo(ex + k, ey - k); ctx.lineTo(ex - k, ey + k); ctx.strokeStyle = M.patches ? '#fff' : OUTLINE; ctx.stroke(); ctx.lineWidth = lw; ctx.strokeStyle = OUTLINE; return; }
+    if (kind === 'capybara'){ ctx.beginPath(); ctx.arc(ex, ey - 0.02 * r, 0.11 * r, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); return; }
+    if (kind === 'frog'){ blob(ex, ey, 0.2 * r, 0.2 * r, '#fff', 0, false); }
+    blob(ex, ey, 0.1 * r, 0.12 * r, M.patches ? '#fff' : OUTLINE, 0, false);
+    blob(ex + 0.035 * r, ey - 0.045 * r, 0.035 * r, 0.035 * r, M.patches ? OUTLINE : '#fff', 0, false);
+  };
+  if (kind === 'frog') [-1, 1].forEach(d => eye(d * 0.45 * r, -0.74 * r));
+  else if (kind === 'capybara') [-1, 1].forEach(d => eye(d * 0.42 * r, -0.28 * r));
+  else [-1, 1].forEach(d => eye(d * 0.38 * r, -0.1 * r));
+  // snouts
+  const S = M.snout;
+  if (S === 'capy'){
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-0.52 * r, 0.02 * r, 1.04 * r, 0.7 * r, 0.32 * r) : ctx.rect(-0.52 * r, 0.02 * r, 1.04 * r, 0.7 * r); ctx.fillStyle = '#7b5130'; ctx.fill();
+    [-1, 1].forEach(d => blob(d * 0.17 * r, 0.22 * r, 0.07 * r, 0.05 * r, OUTLINE, 0, false));
+    ctx.beginPath(); ctx.moveTo(-0.14 * r, 0.5 * r); ctx.quadraticCurveTo(0, 0.58 * r, 0.14 * r, 0.5 * r); ctx.stroke();
+  } else if (S === 'cat' || S === 'bunny'){
+    ctx.beginPath(); ctx.moveTo(-0.1 * r, 0.12 * r); ctx.lineTo(0.1 * r, 0.12 * r); ctx.lineTo(0, 0.24 * r); ctx.closePath(); ctx.fillStyle = '#f07a95'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-0.2 * r, 0.32 * r); ctx.quadraticCurveTo(-0.1 * r, 0.42 * r, 0, 0.26 * r); ctx.quadraticCurveTo(0.1 * r, 0.42 * r, 0.2 * r, 0.32 * r); ctx.stroke();
+    if (S === 'cat'){ ctx.lineWidth = Math.max(0.8, lw * 0.6); [-1, 1].forEach(d => [-0.06, 0.08].forEach(o => { ctx.beginPath(); ctx.moveTo(d * 0.35 * r, (0.22 + o) * r); ctx.lineTo(d * 0.9 * r, (0.16 + o * 2) * r); ctx.stroke(); })); ctx.lineWidth = lw; }
+  } else if (S === 'dog'){
+    blob(0, 0.32 * r, 0.42 * r, 0.3 * r, '#f6e2c8', 0, false);
+    blob(0, 0.2 * r, 0.14 * r, 0.1 * r, OUTLINE, 0, false);
+    blob(0, 0.5 * r, 0.09 * r, 0.11 * r, '#f07a95', 0, false);
+  } else if (S === 'frog'){
+    ctx.beginPath(); ctx.arc(0, 0.05 * r, 0.55 * r, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+  } else if (S === 'duck'){
+    blob(0, 0.32 * r, 0.5 * r, 0.22 * r, '#f08a24');
+    ctx.beginPath(); ctx.moveTo(-0.42 * r, 0.33 * r); ctx.lineTo(0.42 * r, 0.33 * r); ctx.stroke();
+  } else if (S === 'panda'){
+    blob(0, 0.2 * r, 0.12 * r, 0.09 * r, '#26262b', 0, false);
+    ctx.beginPath(); ctx.moveTo(-0.14 * r, 0.38 * r); ctx.quadraticCurveTo(0, 0.48 * r, 0.14 * r, 0.38 * r); ctx.stroke();
+  } else if (S === 'axo'){
+    ctx.beginPath(); ctx.arc(0, 0.12 * r, 0.32 * r, 0.2 * Math.PI, 0.8 * Math.PI); ctx.stroke();
+  }
+  if (M.extra === 'orange' && !dazed){
+    blob(0.08 * r, -1.08 * r, 0.3 * r, 0.27 * r, '#f7931e');
+    blob(0.2 * r, -1.36 * r, 0.14 * r, 0.06 * r, '#4f9d3a', -0.5, false);
+  }
+  ctx.restore();
+}
+/* one train car in its own frame: forward is +x, up is −y */
+function paintCar(ctx, w, h, c, carCol, dazed){
+  const M = c === 0 && STYLE.mascot && MASCOTS[STYLE.mascot];
+  const animal = M && STYLE.mascotMode === 'car';
+  const r = Math.max(6, h * (animal ? 1.0 : 0.85));
+  if (M && !animal) drawMascot(ctx, STYLE.mascot, w * 0.1, -h / 2 - r * 0.42, r, dazed);
+  ctx.fillStyle = animal ? M.fur : carCol(c);
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-w / 2, -h / 2, w, h, animal ? h / 2 : Math.min(h / 2, 4)) : ctx.rect(-w / 2, -h / 2, w, h); ctx.fill();
+  if (animal){ ctx.lineWidth = Math.max(1, h * 0.09); ctx.strokeStyle = OUTLINE; ctx.stroke(); }
+  if (M && !animal) [-1, 1].forEach(d => { ctx.beginPath(); ctx.arc(w * 0.1 + d * r * 0.42, -h / 2, r * 0.2, 0, 7); ctx.fillStyle = M.fur; ctx.fill(); ctx.lineWidth = Math.max(0.8, r * 0.07); ctx.strokeStyle = OUTLINE; ctx.stroke(); });
+  else if (STYLE.train && c === 0 && !animal){ ctx.fillStyle = C.paper; ctx.globalAlpha = 0.6; ctx.fillRect(-w / 2 + 3, -1, w - 6, 2); ctx.globalAlpha = 1; }
+  ctx.fillStyle = C.ink;
+  const wr = Math.max(1.8, h * 0.25);
+  [-w * 0.3, w * 0.3].forEach(dx => { ctx.beginPath(); ctx.arc(dx, h / 2, wr, 0, 7); ctx.fill(); });
+  if (animal) drawMascot(ctx, STYLE.mascot, w / 2 - r * 0.25, -h * 0.25, r, dazed);
+}
+function drawDazedMascot(ctx, X, Y, a){
+  if (!STYLE.mascot || a < 0.3) return;
+  const t = a - 0.3, r = 13;
+  const px = X + 34 + Math.min(t, 0.8) * 40, py = Y - r - Math.abs(Math.sin(t * 5)) * 34 * Math.max(0, 1 - t * 0.9);
+  drawMascot(ctx, STYLE.mascot, px, py, r, true);
+  if (t > 0.5){ for (let i = 0; i < 3; i++){ const an = t * 4 + i * 2.1; ctx.fillStyle = '#f7c531'; ctx.font = `${10}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('★', px + Math.cos(an) * r * 1.3, py - r * 1.25 + Math.sin(an) * r * 0.35); } }
+}
+
+/* ---------- explosion ---------- */
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function drawBoom(ctx, X, Y, a, sc, carCol){
+  const rnd = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+  if (!REDUCED){
+    // fireball
+    const fr = Math.min(1, a * 3.5), fade = Math.max(0, 1 - a * 0.9);
+    ctx.save(); ctx.globalAlpha = fade;
+    ctx.fillStyle = C.car; ctx.beginPath(); ctx.arc(X, Y - 10, 12 + fr * 46, 0, 7); ctx.fill();
+    ctx.fillStyle = C.accent; ctx.beginPath(); ctx.arc(X, Y - 10, 6 + fr * 30, 0, 7); ctx.fill();
+    ctx.fillStyle = C.paper; ctx.globalAlpha = Math.max(0, 1 - a * 3); ctx.beginPath(); ctx.arc(X, Y - 10, 4 + fr * 16, 0, 7); ctx.fill();
+    ctx.restore();
+    // smoke
+    for (let i = 0; i < 7; i++){
+      const t = Math.max(0, a - 0.15);
+      ctx.save(); ctx.globalAlpha = Math.max(0, 0.45 - t * 0.28); ctx.fillStyle = C.muted;
+      ctx.beginPath(); ctx.arc(X + (rnd(i) - 0.5) * 70 * (0.4 + t), Y - 20 - t * (40 + rnd(i + 9) * 50), 8 + t * 22, 0, 7); ctx.fill(); ctx.restore();
+    }
+    // debris
+    for (let i = 0; i < 18; i++){
+      const ang = -Math.PI * (0.08 + 0.84 * rnd(i + 1)), sp = 140 + 220 * rnd(i + 30);
+      const px = X + Math.cos(ang) * sp * a, py = Math.min(Y - 2, Y - 10 + Math.sin(ang) * sp * a + 0.5 * 520 * a * a);
+      ctx.save(); ctx.translate(px, py); ctx.rotate(a * (6 + i));
+      ctx.fillStyle = i % 3 === 0 ? C.ink : carCol(i % 3); const z = 3 + rnd(i + 60) * 6;
+      ctx.fillRect(-z / 2, -z / 3, z, z * 0.66); ctx.restore();
+    }
+  }
+  // the word
+  const pop = REDUCED ? 1 : Math.min(1, a * 5), size = 18 + pop * 28;
+  ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, 2.2 - a * 1.2));
+  ctx.font = `${size}px ` + getComputedStyle(document.body).getPropertyValue('--f-display');
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineWidth = 5; ctx.strokeStyle = C.ink; ctx.fillStyle = C.car;
+  const ty = Math.max(size + 6, Y - 60);
+  ctx.translate(Math.max(135, Math.min(ctx.canvas.clientWidth - 135, X)), ty); ctx.rotate(-0.08);
+  ctx.strokeText('KABOOM!', 0, 0); ctx.fillText('KABOOM!', 0, 0); ctx.restore();
+  drawDazedMascot(ctx, X, Y, a);
+}
+
+/* ---------- track drawing ---------- */
+function drawTrack(){
+  const cv = $('trackCv'), { ctx, W, H } = fitCanvas(cv);
+  let maxX = 0, maxY = 0;
+  for (let i = 0; i < T.n; i += 4){ if (T.X[i] > maxX) maxX = T.X[i]; if (T.Y[i] > maxY) maxY = T.Y[i]; }
+  const f = frameAt(playT);
+  const flying = !!(f && playT > 0 && (f.fly || f.boom));
+  if (flying && R.crash){ maxX = Math.max(maxX, R.crash.x + 12); maxY = Math.max(maxY, R.crash.apex + 4); }
+  const fitMode = VZ.mode === 'fit';
+  const following = !fitMode && $('followChk').checked && playT > 0 && f;
+  const pad = 18, bottom = 26;
+  let target;
+  if (fitMode){
+    // whole ride in one window: horizontal and vertical scales set separately
+    const scX = (W - 50) / (maxX + 4), scY = (H - bottom - 56) / (Math.max(maxY, 10) + 4);
+    target = { scX, scY, ox: 34 - 0 * scX, gy: H - bottom };
+  } else if (following){
+    const scO = Math.min((W - 2 * pad - 30) / (maxX + 4), (H - bottom - 60) / (maxY + 6));
+    const k = f.fly ? { x: f.fly.x, y: f.fly.y, th: f.fly.th } : f.boom ? { x: f.boom.x, y: 2, th: 0 } : at(T, f.s);
+    const sc = Math.max(scO, Math.min(W / 85, H / 45));
+    const visH = (H - bottom) / sc;
+    const cy = Math.max(visH / 2 - 1, k.y + 4);
+    target = { sc, cx: k.x + 12 * Math.cos(k.th), cy };
+  } else {
+    // true scale: fit the tallest point to the canvas height, then let the ride run sideways (pan to see the rest)
+    const scFitH = (H - bottom - 52) / (maxY + 3);
+    const scFitAll = Math.min(scFitH, (W - 50) / (maxX + 4));
+    VZ.min = scFitAll / scFitH;
+    VZ.z = Math.max(VZ.min, Math.min(4, VZ.z));
+    const sc = scFitH * VZ.z;
+    const visW = W / sc, visH = (H - bottom) / sc;
+    const left = -30 / sc, right = maxX + 4;
+    let cx;
+    if (right - left <= visW) cx = (left + right) / 2;
+    else { if (VZ.cx == null) VZ.cx = left + visW / 2; cx = VZ.cx = Math.max(left + visW / 2, Math.min(right - visW / 2, VZ.cx)); }
+    const cyMin = visH / 2 - 0.5, cyMax = Math.max(cyMin, maxY + 6 - visH / 2);
+    VZ.cy = Math.max(cyMin, Math.min(cyMax, VZ.cy ?? cyMin));
+    VZ.canPan = right - left > visW + 0.5 || cyMax > cyMin + 0.5;
+    target = { sc, cx, cy: VZ.cy };
+  }
+  // convert to a uniform camera shape {scX, scY, ox, gy}
+  const toCam = t => t.scX ? t : { scX: t.sc, scY: t.sc, ox: W / 2 - t.cx * t.sc, gy: (H - bottom) / 2 + t.cy * t.sc };
+  const tc = toCam(target);
+  if (drag && cam) { /* hold the view still while dragging */ }
+  else if (!cam || !playing || (fitMode && !flying)) cam = { ...tc };
+  else { for (const k of ['scX', 'scY', 'ox', 'gy']) cam[k] += (tc[k] - cam[k]) * 0.15; }
+  const scX = cam.scX, scY = cam.scY, sc = Math.min(scX, scY), ox = cam.ox, groundY = cam.gy;
+  view = { ox, groundY, scX, scY, sc };
+  const sx = x => ox + x * scX, sy = y => groundY - y * scY;
+
+  ctx.fillStyle = C.paper; ctx.fillRect(0, 0, W, H);
+  // grid
+  const x0 = -ox / scX, x1 = (W - ox) / scX, yTop = groundY / scY, yBot = (groundY - H) / scY;
+  const step = scY > 6 ? 5 : scY > 2.5 ? 10 : 20;
+  const stepX = [5, 10, 20, 25, 50, 100].find(v => v * scX >= 22) || 200;
+  ctx.lineWidth = 1;
+  for (let gx = Math.floor(x0 / stepX) * stepX; gx <= x1; gx += stepX){
+    ctx.strokeStyle = gx % (stepX * 2) === 0 ? C['grid-major'] : C.grid;
+    ctx.beginPath(); ctx.moveTo(Math.round(sx(gx)) + .5, 0); ctx.lineTo(Math.round(sx(gx)) + .5, H); ctx.stroke();
+  }
+  for (let gy = Math.floor(yBot / step) * step; gy <= yTop; gy += step){
+    if (gy < 0) continue;
+    ctx.strokeStyle = gy % (step * 2) === 0 ? C['grid-major'] : C.grid;
+    ctx.beginPath(); ctx.moveTo(0, Math.round(sy(gy)) + .5); ctx.lineTo(W, Math.round(sy(gy)) + .5); ctx.stroke();
+  }
+  // ground
+  ctx.fillStyle = C.ground; ctx.fillRect(0, sy(0), W, H - sy(0));
+  ctx.strokeStyle = C.support; ctx.beginPath(); ctx.moveTo(0, sy(0) + .5); ctx.lineTo(W, sy(0) + .5); ctx.stroke();
+  // height labels
+  ctx.font = '11px ' + getComputedStyle(document.body).getPropertyValue('--f-mono');
+  ctx.fillStyle = C.muted; ctx.textBaseline = 'middle';
+  for (let gy = step * 2; gy <= yTop; gy += step * 2){ if (sy(gy) > 10) ctx.fillText(gy + ' m', 6, sy(gy) - 7); }
+  if (fitMode){ ctx.textAlign = 'center'; for (let gx = stepX * 4; gx < x1 - 10; gx += stepX * 4) ctx.fillText(gx + ' m', sx(gx), sy(0) + 13); ctx.textAlign = 'left'; }
+  // supports
+  ctx.strokeStyle = C.support; ctx.lineWidth = Math.max(1, sc * 0.18);
+  const every = Math.max(1, Math.round(Math.max(4, 7 / scX) / DS));
+  ctx.beginPath();
+  for (let i = 0; i < T.n; i += every){
+    if (T.inLoop[i] || T.Y[i] < 0.8) continue;
+    const X = sx(T.X[i]); if (X < -5 || X > W + 5) continue;
+    ctx.moveTo(X, sy(T.Y[i]) + 2); ctx.lineTo(X, sy(0));
+  }
+  ctx.stroke();
+  // loop supports: two legs from bottom
+  T.sections.filter(s => s.kind === 'loop').forEach(s => {
+    const a = at(T, s.s0), b = at(T, s.s1);
+    const topI = Math.round((s.s0 + s.s1) / 2 / DS);
+    ctx.beginPath(); ctx.moveTo(sx(T.X[topI]), sy(T.Y[topI])); ctx.lineTo(sx((a.x + b.x) / 2), sy(0)); ctx.stroke();
+  });
+  // station + brakes
+  const st = T.sections[0];
+  ctx.fillStyle = C.support; ctx.fillRect(sx(1), sy(STATION_H) + 3, (st.s1 - 2) * scX, Math.max(3, 0.6 * sc));
+  const br = T.sections[T.sections.length - 1];
+  ctx.save(); ctx.strokeStyle = C.warn; ctx.lineWidth = Math.max(2, sc * 0.5); ctx.setLineDash([Math.max(4, scX * 1.2), Math.max(3, scX * 0.8)]);
+  ctx.beginPath(); ctx.moveTo(sx(at(T, br.s0).x), sy(STATION_H) - Math.max(3, sc * 0.5)); ctx.lineTo(sx(at(T, br.s0 + 30).x), sy(STATION_H) - Math.max(3, sc * 0.5)); ctx.stroke(); ctx.restore();
+  const lw = Math.max(3, sc * 0.55);
+  // selected section glow
+  const selSec = sel != null ? T.sections.find(s => s.idx >= 0 && D.els[s.idx]?.id === sel) : null;
+  if (selSec){
+    ctx.save(); ctx.strokeStyle = C.accent; ctx.globalAlpha = 0.28; ctx.lineWidth = lw + 12; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = Math.floor(selSec.s0 / DS); i <= Math.min(T.n - 1, selSec.s1 / DS); i++){ const X = sx(T.X[i]), Y = sy(T.Y[i]); ctx.lineTo(X, Y); }
+    ctx.stroke(); ctx.restore();
+  }
+  // track colored by g
+  ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const col = c => c === 'track' && STYLE.track ? STYLE.track : C[c];
+  let cls = null; ctx.beginPath();
+  for (let i = 0; i < T.n; i++){
+    const c = gClass(SHOW() ? R.gAt[i] : NaN);
+    if (c !== cls){
+      if (cls){ ctx.lineTo(sx(T.X[i]), sy(T.Y[i])); ctx.strokeStyle = col(cls); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(sx(T.X[i]), sy(T.Y[i])); cls = c;
+    } else ctx.lineTo(sx(T.X[i]), sy(T.Y[i]));
+  }
+  ctx.strokeStyle = col(cls); ctx.stroke();
+  // buffer stop at the very end of the track
+  { const e = at(T, T.total - 0.5), X = sx(e.x), Y = sy(e.y); ctx.fillStyle = C.bad; ctx.fillRect(X - 2, Y - Math.max(10, sc * 2.2), Math.max(4, sc * 0.6), Math.max(10, sc * 2.2)); }
+  // inner rail highlight
+  ctx.lineWidth = Math.max(1, lw * 0.28); ctx.strokeStyle = C.paper; ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  for (let i = 0; i < T.n; i += 2){ const X = sx(T.X[i]), Y = sy(T.Y[i]); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+  ctx.stroke(); ctx.globalAlpha = 1;
+  // lift chain
+  ctx.save(); ctx.strokeStyle = C.muted; ctx.lineWidth = Math.max(1, lw * 0.35); ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  for (let i = Math.floor(T.sections[1].s0 / DS); i <= T.liftEnd / DS; i++){ const X = sx(T.X[i]), Y = sy(T.Y[i]); ctx.lineTo(X, Y); }
+  ctx.stroke(); ctx.restore();
+  // stall marker
+  ctx.font = `600 12px ${getComputedStyle(document.body).getPropertyValue('--f-mono')}`;
+  const tag = (s, text, col) => {
+    const k = at(T, s), X = sx(k.x), Y = sy(k.y);
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X, Y, 5, 0, 7); ctx.fill();
+    const w = ctx.measureText(text).width + 10;
+    let lx = Math.min(W - w - 4, Math.max(4, X - w / 2)), ly = Y - 24; if (ly < 4) ly = Y + 10;
+    ctx.fillStyle = C.panel; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(lx, ly, w, 18, 4) : ctx.rect(lx, ly, w, 18); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = col; ctx.textBaseline = 'middle'; ctx.fillText(text, lx + 5, ly + 9.5);
+  };
+  if (SHOW()){
+  if (R.maxG > 3.5) tag(R.sMax, REAL ? R.maxG.toFixed(1) + ' g' : (R.maxG > 5 ? '🤢 Ouch!' : '😬 Intense'), R.maxG > 5 ? C.bad : C.warn);
+  if (R.minG < -1) tag(R.sMin, REAL ? R.minG.toFixed(1) + ' g' : (R.minG < -1.5 ? '🤢 Ouch!' : '😬 Intense'), R.minG < -1.5 ? C.bad : C.warn);
+  if (R.stall) tag(R.stall.s, 'stalls here', C.bad);
+  if (R.crash && !flying) tag(T.total - 3, 'flies off!', C.bad);
+  }
+  // train: three cars, sized and spaced in screen pixels so they read in any view
+  const sNow = f ? f.s : 9;
+  const carPx = Math.max(16, Math.min(4.2 * sc, 4.2 * scX)), carH = Math.max(7, Math.min(1.25 * sc, 12));
+  const carCol = c => STYLE.train || (c === 0 ? C.accent : C.car);
+  const drawCar = (cx, cy, ang, w, h, c) => {
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(ang); paintCar(ctx, w, h, c, carCol); ctx.restore();
+  };
+  if (f && playT > 0 && f.fly){
+    // tumbling off the end of the track
+    const X = sx(f.fly.x), Y = sy(f.fly.y), a = f.fly.age;
+    const dx = Math.cos(f.fly.th) * scX, dy = -Math.sin(f.fly.th) * scY, dl = Math.hypot(dx, dy) || 1;
+    for (let c = 0; c < 3; c++){
+      const back = c * (carPx + 6 + a * 10);
+      drawCar(X - dx / dl * back, Y - dy / dl * back + c * a * a * 6, Math.atan2(dy, dx) + a * (2.2 + c * 1.3) * (c % 2 ? -1 : 1), carPx, carH, c);
+    }
+  } else if (f && playT > 0 && f.boom){
+    drawBoom(ctx, sx(f.boom.x), sy(0), f.boom.age, sc, carCol);
+  } else {
+    const scr = s => { const k = at(T, s); return [sx(k.x), sy(k.y)]; };
+    let sHead = sNow;
+    for (let c = 0; c < 3; c++){
+      const [hx, hy] = scr(sHead);
+      let sb = sHead, bx = hx, by = hy;
+      while (sb > 0.5){ sb -= 0.25; [bx, by] = scr(sb); if (Math.hypot(hx - bx, hy - by) >= carPx) break; }
+      const ang = Math.atan2(hy - by, hx - bx);
+      const mx = (hx + bx) / 2 + Math.sin(ang) * carH * 0.65, my = (hy + by) / 2 - Math.cos(ang) * carH * 0.65;
+      drawCar(mx, my, ang, Math.hypot(hx - bx, hy - by) - 2, carH, c);
+      sHead = sb - 3 / scX;
+      if (sHead < 0.5) break;
+    }
+  }
+  // edit handles (only while parked in the station)
+  if (playT === 0){
+    const mono = getComputedStyle(document.body).getPropertyValue('--f-mono');
+    handles().forEach(hd => {
+      const X = sx(hd.x), Y = sy(hd.y);
+      const active = drag && drag.h.id === hd.id, chosen = hd.id === sel;
+      const r = active ? 9 : chosen ? 8 : 6.5;
+      ctx.beginPath(); ctx.arc(X, Y, r + 2.5, 0, 7); ctx.fillStyle = C.paper; ctx.fill();
+      ctx.beginPath(); ctx.arc(X, Y, r, 0, 7);
+      ctx.fillStyle = hd.kind === 'loop' ? C.accent : hd.kind === 'lift' ? C.ink : (chosen || active ? C.accent : C.panel);
+      ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = hd.kind === 'lift' ? C.ink : C.accent; ctx.stroke();
+      if (!active){ ctx.font = `600 11px ${mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = C.ink; const lbl = Math.round(hd.y) + ' m'; const ly = Y - r - 7 < 50 ? Y + r + 15 : Y - r - 7; ctx.fillText(lbl, X, ly); ctx.textAlign = 'left'; }
+      if (hd.kind === 'loop'){ ctx.strokeStyle = C.paper; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(X, Y - 3.5); ctx.lineTo(X, Y + 3.5); ctx.moveTo(X - 2.5, Y - 1.5); ctx.lineTo(X, Y - 3.8); ctx.lineTo(X + 2.5, Y - 1.5); ctx.stroke(); }
+      if (active){
+        const el = D.els.find(x => x.id === hd.id);
+        const text = hd.kind === 'lift' ? `lift ${D.lift} m` : hd.kind === 'loop' ? `loop ${el.h} m tall` : `${el.h} m high · ${el.len} m long`;
+        ctx.font = `600 12px ${mono}`;
+        const w = ctx.measureText(text).width + 12;
+        const lx = Math.min(W - w - 4, Math.max(4, X - w / 2)), ly = Math.max(44, Y - 34);
+        ctx.fillStyle = C.ink; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(lx, ly, w, 20, 5) : ctx.rect(lx, ly, w, 20); ctx.fill();
+        ctx.fillStyle = C.paper; ctx.textBaseline = 'middle'; ctx.fillText(text, lx + 6, ly + 10.5);
+        if (hd.kind === 'seg'){ ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = C.accent; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(X, sy(0)); ctx.stroke(); ctx.restore(); }
+      }
+    });
+  }
+}
+
+/* ---------- chart ---------- */
+function drawChart(){
+  const cv = $('chartCv'), { ctx, W, H } = fitCanvas(cv);
+  ctx.fillStyle = C.panel; ctx.fillRect(0, 0, W, H);
+  if (!SHOW()){
+    ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '14px ' + getComputedStyle(document.body).getPropertyValue('--f-body');
+    ctx.fillText(GS.active ? 'Run a test ride to see how this design behaves.' : 'Pick a client to start building.', W / 2, H / 2);
+    ctx.textAlign = 'left'; return;
+  }
+  const fr = R.frames; if (!fr.length) return;
+  const tMax = fr[fr.length - 1].t || 1;
+  const gHi = Math.max(6, Math.ceil(R.maxG + .5)), gLo = Math.min(-2, Math.floor(R.minG - .5));
+  const L = REAL ? 34 : 62, Rr = 44, top = 8, bot = 22;
+  const px = t => L + (t / tMax) * (W - L - Rr), py = g => top + (gHi - g) / (gHi - gLo) * (H - top - bot);
+  const vMax = Math.max(10, Math.ceil(R.maxV * 2.237 / 10) * 10);
+  const pv = v => top + (1 - v / vMax) * (H - top - bot);
+  const mono = getComputedStyle(document.body).getPropertyValue('--f-mono');
+  // danger bands
+  ctx.fillStyle = C.bad; ctx.globalAlpha = 0.12;
+  ctx.fillRect(L, py(gHi), W - L - Rr, py(5) - py(gHi));
+  ctx.fillRect(L, py(-1.5), W - L - Rr, py(gLo) - py(-1.5));
+  ctx.fillStyle = C.warn; ctx.globalAlpha = 0.1;
+  ctx.fillRect(L, py(5), W - L - Rr, py(3.5) - py(5)); ctx.fillRect(L, py(-1), W - L - Rr, py(-1.5) - py(-1));
+  ctx.fillStyle = C.air; ctx.globalAlpha = 0.09; ctx.fillRect(L, py(0.2), W - L - Rr, py(-1) - py(0.2));
+  ctx.globalAlpha = 1;
+  if (!REAL){
+    ctx.font = '600 11px ' + getComputedStyle(document.body).getPropertyValue('--f-body'); ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    [['Ouch!', (5 + gHi) / 2, C.bad], ['Intense', 4.25, C.warn], ['Comfy', 1.85, C.ok], ['Floating', -0.4, C.air], ['Ouch!', (-1.5 + gLo) / 2, C.bad]]
+      .forEach(([t, g, c]) => { ctx.fillStyle = c; ctx.fillText(t, L - 6, py(g)); });
+  }
+  // grid
+  ctx.font = '10px ' + mono; ctx.textBaseline = 'middle';
+  for (let g = gLo; g <= gHi; g++){
+    if (g % (gHi - gLo > 10 ? 2 : 1)) continue;
+    ctx.strokeStyle = g === 0 || g === 1 ? C.muted : C.line; ctx.lineWidth = 1;
+    ctx.setLineDash(g === 0 ? [3, 3] : []);
+    ctx.beginPath(); ctx.moveTo(L, Math.round(py(g)) + .5); ctx.lineTo(W - Rr, Math.round(py(g)) + .5); ctx.stroke();
+    ctx.setLineDash([]);
+    if (REAL){ ctx.fillStyle = C.muted; ctx.textAlign = 'right'; ctx.fillText(g + 'g', L - 5, py(g)); }
+  }
+  ctx.textAlign = 'left'; ctx.fillStyle = C.accent;
+  [0, vMax / 2, vMax].forEach(v => ctx.fillText(v + ' mph', W - Rr + 5, pv(v)));
+  ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  const tStep = tMax > 90 ? 20 : tMax > 40 ? 10 : 5;
+  for (let t = 0; t <= tMax; t += tStep) ctx.fillText(t + 's', px(t), H - 6);
+  // lines
+  ctx.lineWidth = 1.6; ctx.lineJoin = 'round';
+  ctx.strokeStyle = C.accent; ctx.beginPath();
+  fr.forEach((f, i) => { const X = px(f.t), Y = pv(Math.abs(f.v) * 2.237); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.stroke();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 1.8; ctx.beginPath();
+  fr.forEach((f, i) => { const X = px(f.t), Y = py(Math.max(gLo, Math.min(gHi, f.gf))); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.stroke();
+  // playhead
+  if (playT > 0){
+    const X = px(Math.min(playT, tMax));
+    ctx.strokeStyle = C.accent; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(X, top); ctx.lineTo(X, H - bot); ctx.stroke();
+    const f = frameAt(playT); if (f){ ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(X, py(Math.max(gLo, Math.min(gHi, f.gf))), 3.5, 0, 7); ctx.fill(); }
+  }
+}
+
+/* ---------- gauges ---------- */
+function drawGauges(){
+  const f = playT > 0 ? frameAt(playT) : null;
+  const v = f ? Math.abs(f.v) : 0, y = f ? f.y : STATION_H, gf = f ? f.gf : 1, s = f ? f.s : 0, t = f ? f.t : 0;
+  $('gSpeed').innerHTML = (v * 2.237).toFixed(0) + '<small>mph</small>';
+  $('gSpeedMs').textContent = REAL ? v.toFixed(1) + ' m/s' : (v < 0.5 ? 'stopped' : v < 9 ? 'slow' : v < 18 ? 'fast' : v < 27 ? 'really fast' : 'blazing');
+  $('gHeight').innerHTML = (REAL ? y.toFixed(1) : y.toFixed(0)) + '<small>m</small>';
+  $('gDist').textContent = s.toFixed(0) + ' m along track';
+  const fl = feel(gf);
+  $('gGk').textContent = REAL ? 'Rider g-force' : 'Rider feel';
+  if (f && f.boom){ $('gG').innerHTML = '<span class="feelface">💥</span>Crashed'; $('gG').style.color = C.bad; $('gGNote').textContent = 'the train is toast'; }
+  else if (f && f.fly){ $('gG').innerHTML = '<span class="feelface">😱</span>Airborne'; $('gG').style.color = C.bad; $('gGNote').textContent = 'off the track!'; }
+  else {
+    $('gG').innerHTML = REAL ? gf.toFixed(1) + '<small>g</small>' : `<span class="feelface">${f ? fl.face : '😀'}</span>${f ? fl.name : 'Comfy'}`;
+    $('gG').style.color = fl.k === 'bad' ? C.bad : fl.k === 'warn' ? C.warn : fl.k === 'air' ? C.air : '';
+    $('gGNote').textContent = !f ? 'sitting still' : fl.note;
+  }
+  $('gTime').innerHTML = (REAL ? t.toFixed(1) : t.toFixed(0)) + '<small>s</small>';
+  const sec = f ? sectionAt(T, s) : T.sections[0];
+  $('gPhase').textContent = !f ? 'in the station' : f.boom ? 'KABOOM' : f.fly ? 'flying off the track!' : (R.stall && t > R.stall.t) ? 'rolling back!' : sec.idx >= 0 ? `section ${sec.idx + 1} · ${sec.label.toLowerCase()}` : sec.label.toLowerCase();
+  const m = R.mass, Etot = R.E0;
+  const pe = m * G * y, ke = 0.5 * m * v * v, heat = f ? f.heat : 0;
+  const denom = Math.max(Etot, pe + ke + heat);
+  $('ePE').style.width = (pe / denom * 100) + '%';
+  $('eKE').style.width = (ke / denom * 100) + '%';
+  $('eHeat').style.width = (heat / denom * 100) + '%';
+  $('ePEv').textContent = (pe / 1000).toFixed(0); $('eKEv').textContent = (ke / 1000).toFixed(0); $('eHeatv').textContent = (heat / 1000).toFixed(0);
+}
+
+function drawAll(){ if (!T) return; drawTrack(); drawChart(); drawGauges(); if (!playing && typeof drawPreview === 'function') drawPreview(); }
+
+
+/* ---------- contracts: the game layer ---------- */
+const CONTRACTS = [
+  { id: 'fair', client: 'Pecan Valley County Fair', who: 'Dolores, fair board president',
+    quote: 'Grandkids and grandparents ride together here. Keep it gentle, keep it cheap, and make it last.',
+    budget: 230000, reward: 120000, rep: 10, mass: 1500, unlock: 0,
+    start: { lift: 22, els: [[4, 55]] },
+    req: [['finish'], ['noLoops'], ['height', 25], ['feel', 'comfy'], ['maxDrops', 0], ['time', 40]],
+    bonus: ['hills', 3], curve: null },
+  { id: 'city', client: 'Trinity Riverfront', who: 'Marcus, city planning office',
+    quote: 'The airport caps everything at 25 meters. The mayor still wants a loop on the postcard.',
+    budget: 340000, reward: 200000, rep: 15, mass: 1500, unlock: 0,
+    start: { lift: 25, els: [[4, 60]] },
+    req: [['finish'], ['height', 25], ['loops', 1], ['feel', 'noOuch']],
+    bonus: ['drops', 1],
+    curve: { after: 1, title: 'Rain in the forecast', text: 'Opening week will be wet. Wet rails are sticky, so friction steals more of the train’s energy. Your last test no longer counts.', realText: 'Opening week will be wet. Wet rails mean more friction: μ goes from 0.015 to 0.025. Your last test no longer counts.', mu: 0.01 } },
+  { id: 'thrill', client: 'Bluebonnet Thrill Park', who: 'Jo, head of rides',
+    quote: 'Our riders want to scream. Big speed, big airtime. Just don’t hurt anybody.',
+    budget: 480000, reward: 360000, rep: 20, mass: 1500, unlock: 20,
+    start: { lift: 40, els: [[4, 80]] },
+    req: [['finish'], ['speed', 55], ['drops', 3], ['feel', 'noOuch']],
+    bonus: ['speed', 62],
+    curve: { after: 1, title: 'Sold out!', text: 'Every seat is full on opening day, so the train is twice as heavy. Will your design still work?', realText: 'Every seat is full on opening day, so the train weighs twice as much: 3,000 kg instead of 1,500 kg. Will your design still work?', massX: 2 } },
+  { id: 'giga', client: 'Lone Star Mega Park', who: 'Priya, chief engineer',
+    quote: 'We want the fastest ride in Texas, and we want it to look good on a highlight reel.',
+    budget: 900000, reward: 700000, rep: 30, mass: 2200, unlock: 45,
+    start: { lift: 70, els: [[4, 170]] },
+    req: [['finish'], ['speed', 75], ['loops', 1], ['feel', 'noOuch'], ['time', 70]],
+    bonus: ['loops', 2],
+    curve: { after: 2, title: 'Budget cut', text: 'The park’s investors got nervous. Your budget just dropped by 15%. Trim the design or find savings.', budgetX: 0.85 } },
+];
+const UPGRADES = [
+  { k: 'wheels', name: 'Polished steel wheels', note: 'Less friction, so less energy is lost', realNote: 'Rolling friction drops from 0.015 to 0.008', cost: 35000 },
+  { k: 'sleek', name: 'Streamlined cars', note: 'Air pushes back on the train less', realNote: 'Cuts air resistance in half', cost: 25000 },
+];
+const PRICE = { track: 280, support: 9, lift: 1100, loop: 55000, station: 20000 };
+
+const money = n => (n < 0 ? '−$' : '$') + (REAL ? Math.round(Math.abs(n)).toLocaleString() : Math.round(Math.abs(n) / 1000).toLocaleString() + 'k');
+function maxHeight(){ let m = 0; for (let i = 0; i < T.n; i++) if (T.Y[i] > m) m = T.Y[i]; return m; }
+function rideTime(r){ const f = r.frames.find(x => x.s >= T.brakeStart); return (r.stall || r.crash) ? 0 : f ? f.t : r.tEnd; }
+const REQ = {
+  finish: { phys: true, label: () => 'Stops safely at the end', test: r => ({ ok: !r.stall && !r.crash, val: r.stall ? 'stalls' : r.crash ? 'flies off!' : 'yes' }) },
+  feel: { phys: true, label: v => v === 'comfy' ? (REAL ? 'Stays between −1 g and 3.5 g' : '😀 Comfy the whole ride') : (REAL ? 'Stays between −1.5 g and 5 g' : 'No 🤢 Ouch! moments'),
+    test: (r, v) => { const f = rideFeel(r); return { ok: v === 'comfy' ? f.k === 'ok' : f.k !== 'bad', val: REAL ? `${r.minG.toFixed(1)} to ${r.maxG.toFixed(1)} g` : f.name }; } },
+  drops: { phys: true, label: v => REAL ? `At least ${v} floating moment${v > 1 ? 's' : ''} (below 0.2 g)` : `At least ${v} stomach drop${v > 1 ? 's' : ''}`, test: (r, v) => ({ ok: r.drops >= v, val: r.drops + '' }) },
+  maxDrops: { phys: true, label: v => REAL ? 'Never below 0.2 g' : 'No stomach drops (riders stay in their seats)', test: (r, v) => ({ ok: r.drops <= v, val: REAL ? r.minG.toFixed(1) + ' g' : r.drops + '' }) },
+  noLoops: { label: () => 'No loops', test: () => { const n = D.els.filter(e => e.type === 'loop').length; return { ok: n === 0, val: n + (n === 1 ? ' loop' : ' loops') }; } },
+  loops: { label: v => `At least ${v} loop${v > 1 ? 's' : ''}`, test: (r, v) => { const n = D.els.filter(e => e.type === 'loop').length; return { ok: n >= v, val: n + (n === 1 ? ' loop' : ' loops') }; } },
+  height: { label: v => `Nothing taller than ${v} m`, test: (r, v) => { const h = maxHeight(); return { ok: h <= v + 0.05, val: h.toFixed(1) + ' m' }; } },
+  maxG: { phys: true, label: v => `Never more than ${v} g`, test: (r, v) => ({ ok: r.maxG <= v, val: r.maxG.toFixed(1) + ' g' }) },
+  minG: { phys: true, label: v => v >= 0 ? 'Riders never float out of their seats (stay above 0 g)' : `Never below ${v} g`, test: (r, v) => ({ ok: r.minG >= v, val: r.minG.toFixed(1) + ' g' }) },
+  speed: { phys: true, label: v => `Top speed of ${v} mph or more`, test: (r, v) => ({ ok: r.maxV * 2.237 >= v, val: (r.maxV * 2.237).toFixed(0) + ' mph' }) },
+  air: { phys: true, label: v => `At least ${v} s of airtime`, test: (r, v) => ({ ok: r.air >= v, val: r.air.toFixed(1) + ' s' }) },
+  hills: { label: v => `At least ${v} hills after the lift`, test: (r, v) => { const n = D.els.filter((e, i) => kindFor(e, i) === 'Climb').length; return { ok: n >= v, val: n + (n === 1 ? ' hill' : ' hills') }; } },
+  time: { phys: true, label: v => `Ride lasts at least ${v} s`, test: (r, v) => { const t = rideTime(r); return { ok: t >= v, val: t ? t.toFixed(0) + ' s' : '—' }; } },
+};
+
+const GKEY = 'coasterlab-game-v1';
+const freshGame = () => ({ cash: 0, rep: 20, done: {}, active: null });
+function loadGame(){
+  try { const g = JSON.parse(localStorage.getItem(GKEY)); if (!g || typeof g.rep !== 'number') return null;
+    if (g.active) g.active.design.els.forEach(e => e.id = uid++); return g; } catch (e) { return null; }
+}
+function saveGame(){ try { localStorage.setItem(GKEY, JSON.stringify(GS)); } catch (e) {} }
+let GS = loadGame() || freshGame();
+const contractOf = A => CONTRACTS.find(c => c.id === A.id);
+
+function paramsNow(){
+  if (MODE !== 'game' || !GS.active) return D;
+  const A = GS.active, c = contractOf(A), cv = A.curveOn ? c.curve : null;
+  return { lift: D.lift, els: D.els,
+    mass: c.mass * (cv && cv.massX ? cv.massX : 1),
+    mu: 0.015 + (cv && cv.mu ? cv.mu : 0) - (A.up.wheels ? 0.007 : 0),
+    dragC: A.up.sleek ? 0.3 : 0.6 };
+}
+function hashNow(){ const P = paramsNow(); return JSON.stringify([D.lift, D.els.map(e => [e.type, e.h, e.len || 0]), P.mass, P.mu, P.dragC]); }
+function SHOW(){ return MODE !== 'game' || (GS.active && GS.active.lastHash === hashNow()); }
+function budgetOf(A){ const c = contractOf(A); return Math.round(c.budget * (A.curveOn && c.curve.budgetX ? c.curve.budgetX : 1)); }
+function costNow(){
+  const A = GS.active;
+  let area = 0; for (let i = 0; i < T.n; i++) if (!T.inLoop[i]) area += T.Y[i] * DS;
+  const loops = D.els.filter(e => e.type === 'loop').length;
+  const parts = { track: T.total * PRICE.track, supports: area * PRICE.support, lift: D.lift * PRICE.lift, loops: loops * PRICE.loop, station: PRICE.station,
+    upgrades: A ? UPGRADES.reduce((s, u) => s + (A.up[u.k] ? u.cost : 0), 0) : 0 };
+  parts.total = Object.values(parts).reduce((a, b) => a + b, 0);
+  return parts;
+}
+function overBudget(){ return !!GS.active && costNow().total > budgetOf(GS.active); }
+function checkRows(r, showPhys){
+  const c = contractOf(GS.active);
+  const row = (q, bonus) => {
+    const def = REQ[q[0]], known = !def.phys || showPhys, res = known ? def.test(r, q[1]) : null;
+    return { label: def.label(q[1]), known, ok: res && res.ok, val: res ? res.val : '?', bonus };
+  };
+  return [...c.req.map(q => row(q, false)), row(c.bonus, true)];
+}
+
+/* ----- rendering the game panel ----- */
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => t.hidden = true, 3200); }
+function starHTML(n){ return `<span class="stars" aria-label="${n} of 3 stars">${[0, 1, 2].map(i => i < n ? '★' : '<span class="off">★</span>').join('')}</span>`; }
+function renderWallet(){ $('wCash').textContent = money(GS.cash); $('wRep').textContent = GS.rep; }
+function renderGame(){
+  renderWallet();
+  const P = $('gamePanel');
+  $('boardNote').hidden = !!GS.active;
+  if (!GS.active){
+    P.innerHTML = `<h2>Choose a client</h2><p class="note">Clients pay when the ride opens and meets every goal. You get three test rides per job.</p>
+      <ul class="jobs">${CONTRACTS.map(c => {
+        const locked = GS.rep < c.unlock, d = GS.done[c.id];
+        return `<li class="job ${locked ? 'locked' : ''}">
+          <div class="who">${c.who}</div><h3>${c.client}</h3><q>${c.quote}</q>
+          <div class="terms"><span>Budget <b>${money(c.budget)}</b></span><span>Pays <b>${money(c.reward)}</b></span><span>Rep <b>+${c.rep}</b></span></div>
+          <div class="jobfoot">${d ? starHTML(d.stars) : '<span class="note">Not started</span>'}
+            ${locked ? `<span class="note">Needs ${c.unlock} reputation</span>` : `<button type="button" data-job="${c.id}">${d ? 'Take it again' : 'Take the job'}</button>`}</div></li>`;
+      }).join('')}</ul>`;
+    renderBudget(); updatePlayBtn(); return;
+  }
+  const A = GS.active, c = contractOf(A), shown = SHOW(), tested = A.lastR && A.lastHash;
+  const rows = checkRows(shown ? R : null, shown);
+  P.innerHTML = `<div class="brief">
+    <div><div class="who">${c.who}</div><h3>${c.client}</h3></div>
+    <q>${c.quote}</q>
+    ${A.curveOn ? `<div class="curve"><b>${c.curve.title}:</b> ${c.curve.text.split('.')[0]}.</div>` : ''}
+    <h2>Requirements</h2>
+    <ul class="reqs">${rows.map(x => `<li class="${x.bonus ? 'bonus' : ''}"><span class="chk ${!x.known ? 'unk' : x.ok ? 'ok' : 'bad'}">${!x.known ? '?' : x.ok ? '✓' : '✗'}</span><span>${x.bonus ? '<b>Bonus:</b> ' : ''}${x.label}</span><span class="val">${x.val}</span></li>`).join('')}</ul>
+    ${!shown ? `<div class="untested">${A.lastHash ? 'You changed the design since your last test. Ride results stay hidden until you test again.' : 'Ride results stay hidden until you run a test.'}</div>` : ''}
+    <div class="tests"><span>Test rides</span>${[0, 1, 2].map(i => `<span class="pip ${i < A.testsLeft ? 'left' : 'used'}"></span>`).join('')}<span>${A.testsLeft} left</span></div>
+    <div class="tests"><span>Predictions: ${A.preds.filter(Boolean).length} right, ${A.preds.filter(x => !x).length} wrong</span></div>
+    <button type="button" class="linkbtn" id="quitJob">Walk away from this job</button>
+  </div>`;
+  renderBudget(); updatePlayBtn();
+}
+function renderBudget(){
+  const box = $('budgetBox'), up = $('upgrades');
+  if (!GS.active){ box.innerHTML = ''; up.innerHTML = ''; return; }
+  const A = GS.active, cost = costNow(), b = budgetOf(A), over = cost.total > b;
+  box.className = 'game-only budget' + (over ? ' over' : '');
+  box.innerHTML = `<div class="row"><span>${over ? 'Over budget' : 'Budget'}</span><span>${money(cost.total)} of ${money(b)}</span></div>
+    <div class="bar"><div style="width:${Math.min(100, cost.total / b * 100)}%"></div></div>
+    <div class="break">track ${money(cost.track)} · supports ${money(cost.supports)} · lift ${money(cost.lift)}${cost.loops ? ' · loops ' + money(cost.loops) : ''}${cost.upgrades ? ' · upgrades ' + money(cost.upgrades) : ''}</div>`;
+  up.innerHTML = `<h2>Upgrades</h2>` + UPGRADES.map(u => `<label for="up-${u.k}"><input type="checkbox" id="up-${u.k}" data-up="${u.k}" ${A.up[u.k] ? 'checked' : ''}><span>${u.name}<small>${REAL ? u.realNote : u.note}</small></span><b>${money(u.cost)}</b></label>`).join('');
+}
+$('upgrades').addEventListener('change', e => { const k = e.target.dataset.up; if (!k || !GS.active) return; GS.active.up[k] = e.target.checked; changed(); });
+$('gamePanel').addEventListener('click', e => {
+  const j = e.target.closest('[data-job]'); if (j) return startContract(j.dataset.job);
+  if (e.target.id === 'quitJob') modal('Walk away?', '<p>You lose this job and 5 reputation. Your design will be scrapped.</p>', [
+    { label: 'Keep working' }, { label: 'Walk away', cls: 'danger', fn: () => { GS.rep = Math.max(0, GS.rep - 5); GS.active = null; enterGame(); } }]);
+});
+
+/* ----- modal ----- */
+function modal(title, body, btns){
+  $('mTitle').textContent = title; $('mBody').innerHTML = body;
+  const m = $('mBtns'); m.innerHTML = '';
+  btns.forEach(b => { const el = document.createElement('button'); el.type = 'button'; el.textContent = b.label; if (b.cls) el.className = b.cls;
+    if (b.id) el.id = b.id; if (b.disabled) el.disabled = true;
+    el.addEventListener('click', () => { if (b.keep) { b.fn && b.fn(); return; } closeModal(); b.fn && b.fn(); }); m.appendChild(el); });
+  $('modal').hidden = false; (m.querySelector('button:not([disabled])') || m).focus();
+}
+function closeModal(){ $('modal').hidden = true; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('modal').hidden && !pendingRide) closeModal(); });
+
+/* ----- flow ----- */
+function enterGame(){
+  lPlaying = false; nPlaying = false; document.body.classList.remove('launch', 'newton'); $('tabLaunch').setAttribute('aria-selected', 'false'); $('tabNewton').setAttribute('aria-selected', 'false'); setHash('goals');
+  MODE = 'game'; document.body.classList.add('game');
+  $('tabGame').setAttribute('aria-selected', 'true'); $('tabSand').setAttribute('aria-selected', 'false');
+  if (GS.active) D = GS.active.design;
+  else D = { lift: 30, mass: 1500, mu: 0.015, drag: true, els: [S(4, 60), S(14, 40), S(3, 40)] };
+  sel = null; saveGame(); syncGlobals(); renderEls(); changed();
+}
+function enterSandbox(){
+  lPlaying = false; nPlaying = false; document.body.classList.remove('launch', 'newton'); $('tabLaunch').setAttribute('aria-selected', 'false'); $('tabNewton').setAttribute('aria-selected', 'false'); setHash('sandbox');
+  MODE = 'sandbox'; document.body.classList.remove('game');
+  $('tabGame').setAttribute('aria-selected', 'false'); $('tabSand').setAttribute('aria-selected', 'true');
+  D = SANDBOX; sel = null; syncGlobals(); renderEls(); changed();
+}
+$('tabGame').addEventListener('click', () => MODE !== 'game' && enterGame());
+$('tabSand').addEventListener('click', () => MODE !== 'sandbox' && enterSandbox());
+function startContract(id){
+  const c = CONTRACTS.find(x => x.id === id);
+  GS.active = { id, testsLeft: 3, lastHash: null, lastR: null, curveOn: false, up: { wheels: false, sleek: false }, preds: [],
+    design: { lift: c.start.lift, mass: c.mass, mu: 0.015, drag: true, els: c.start.els.map(([h, len]) => S(h, len)) } };
+  enterGame();
+  modal(c.client, `<p>${c.quote}</p><p class="note">Shape the track by dragging the dots. You have <b>3 test rides</b>. Before each one you’ll predict what happens and can bet reputation on it. When you’re confident, open the ride to the public.</p>`, [{ label: 'Start building', cls: 'go' }]);
+}
+
+const QUESTIONS = [
+  { make: (c) => ({ text: 'Will the train stop safely at the end of the track?', opts: ['Yes', 'No, it stalls', 'No, it flies off'], ans: r => r.stall ? 1 : r.crash ? 2 : 0 }) },
+  { make: (c) => ({ text: REAL ? 'Will riders feel more than 3.5 g or less than −1 g anywhere?' : 'Will riders have any 😬 Intense or 🤢 Ouch! moments?', opts: ['Yes', 'No'], ans: r => rideFeel(r).k === 'ok' ? 1 : 0 }) },
+  { make: (c) => ({ text: 'What will the top speed be?', opts: ['Under 40 mph', '40–60 mph', 'Over 60 mph'], ans: r => { const v = r.maxV * 2.237; return v < 40 ? 0 : v <= 60 ? 1 : 2; } }) },
+];
+function beginTest(){
+  const A = GS.active; if (!A) return;
+  if (overBudget()){ toast('You’re over budget. Trim the track or drop an upgrade before testing.'); return; }
+  if (A.testsLeft <= 0){ toast('No test rides left. Open to the public, or walk away from the job.'); return; }
+  const c = contractOf(A), q = QUESTIONS[(3 - A.testsLeft) % QUESTIONS.length].make(c);
+  let pick = null, bet = 0;
+  const bets = [0, 5, 10, 20].filter(b => b <= GS.rep);
+  modal(`Test ride ${4 - A.testsLeft} of 3`, `
+    <p class="qlabel">Predict first</p><p><b>${q.text}</b></p>
+    <div class="choices" id="qOpts">${q.opts.map((o, i) => `<button type="button" data-o="${i}" aria-pressed="false">${o}</button>`).join('')}</div>
+    <p class="qlabel">Bet reputation on it?</p>
+    <div class="wager" id="qBet">${bets.map(b => `<button type="button" data-b="${b}" aria-pressed="${b === 0}">${b ? b + ' rep' : 'No bet'}</button>`).join('')}</div>
+    <p class="note">Right: win what you bet. Wrong: lose it. You have ${GS.rep} reputation.</p>`,
+    [{ label: 'Cancel' }, { label: 'Lock it in & ride', cls: 'go', id: 'qGo', disabled: true, keep: true, fn: () => {
+      if (pick == null) return;
+      closeModal();
+      const r = R;
+      A.testsLeft--; A.lastHash = hashNow(); A.lastR = true;
+      pendingRide = { type: 'test', q, pick, bet, right: q.ans(r) === pick, ansText: q.opts[q.ans(r)] };
+      saveGame(); renderGame(); startRide();
+    } }]);
+  $('qOpts').addEventListener('click', e => { const b = e.target.closest('[data-o]'); if (!b) return; pick = +b.dataset.o;
+    $('qOpts').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); $('qGo').disabled = false; });
+  $('qBet').addEventListener('click', e => { const b = e.target.closest('[data-b]'); if (!b) return; bet = +b.dataset.b;
+    $('qBet').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+}
+$('openBtn').addEventListener('click', () => {
+  const A = GS.active; if (!A) return;
+  if (overBudget()){ toast('You’re over budget. The client won’t sign off until the cost fits.'); return; }
+  const untested = !SHOW();
+  modal('Open to the public?', `<p>This is final. Riders line up, the client watches, and you get paid only if every requirement is met.</p>${untested ? '<p class="untested">This exact design hasn’t been tested. Opening an untested ride is a gamble.</p>' : ''}`,
+    [{ label: 'Not yet' }, { label: 'Open the gates', cls: 'go', fn: () => {
+      A.lastHash = hashNow(); A.lastR = true;
+      pendingRide = { type: 'open' }; saveGame(); renderGame(); startRide();
+    } }]);
+});
+
+function finishRide(){
+  const P = pendingRide; if (!P) return;
+  pendingRide = null;
+  const A = GS.active; if (!A) return;
+  const c = contractOf(A);
+  if (P.type === 'test'){
+    A.preds.push(P.right);
+    GS.rep = Math.max(0, GS.rep + (P.right ? P.bet : -P.bet));
+    saveGame(); renderGame();
+    const after = () => {
+      if (c.curve && !A.curveOn && (3 - A.testsLeft) >= c.curve.after){
+        A.curveOn = true; saveGame(); recompute();
+        modal(c.curve.title, `<p>${REAL && c.curve.realText ? c.curve.realText : c.curve.text}</p>`, [{ label: 'Back to the drawing board', cls: 'go' }]);
+      }
+    };
+    modal(P.right ? 'You called it!' : 'Not quite', `
+      <p>${P.q.text}</p><p>You said <b>${P.q.opts[P.pick]}</b>. The answer was <b>${P.ansText}</b>.</p>
+      ${P.bet ? `<p class="big" style="color:var(--${P.right ? 'ok' : 'bad'})">${P.right ? '+' : '−'}${P.bet} rep</p>` : ''}
+      <p class="note">Check the requirements list and the ride trace to see what happened and why.</p>`, [{ label: 'Got it', cls: 'go', fn: after }]);
+    return;
+  }
+  // opening day
+  const rows = checkRows(R, true), reqOK = rows.filter(x => !x.bonus).every(x => x.ok), bonusOK = rows.find(x => x.bonus).ok;
+  const cost = costNow().total, budget = budgetOf(A), saved = Math.max(0, budget - cost);
+  let body, title;
+  if (reqOK){
+    const savings = Math.round(saved * 0.5), bonusPay = bonusOK ? Math.round(c.reward * 0.25) : 0;
+    const stars = 1 + (bonusOK ? 1 : 0) + (saved >= budget * 0.1 ? 1 : 0);
+    const repGain = c.rep + (bonusOK ? 5 : 0);
+    GS.cash += c.reward + bonusPay + savings; GS.rep += repGain;
+    const prev = GS.done[c.id]; GS.done[c.id] = { stars: Math.max(stars, prev ? prev.stars : 0) };
+    title = `Grand opening: ${STYLE.name ? STYLE.name + ' is' : 'it\u2019s'} a hit!`;
+    body = `<p>${['The line wraps around the parking lot.', 'Riders come off laughing and get right back in line.', 'The client is already talking about a sequel.'][stars - 1]}</p>
+      ${starHTML(stars)}
+      <div class="resgrid"><div><span>Contract payment</span><span>${money(c.reward)}</span></div>
+      <div><span>Bonus: ${REQ[c.bonus[0]].label(c.bonus[1]).toLowerCase()}</span><span>${bonusOK ? money(bonusPay) : 'missed'}</span></div>
+      <div><span>Half of unspent budget (${money(saved)})</span><span>${money(savings)}</span></div>
+      <div class="tot"><span>Total earned</span><span>${money(c.reward + bonusPay + savings)}</span></div>
+      <div><span>Reputation</span><span>+${repGain}</span></div></div>
+      <p class="note">Stars: one for opening, one for the bonus, one for finishing at least 10% under budget.</p>`;
+  } else {
+    const failed = rows.filter(x => !x.bonus && !x.ok);
+    const stalled = !!R.stall, crashed = !!R.crash, loss = crashed ? 20 : stalled ? 15 : 10;
+    GS.rep = Math.max(0, GS.rep - loss);
+    title = crashed ? 'KABOOM!' : stalled ? 'Riders stranded!' : 'The client is not happy';
+    body = `<p>${crashed ? 'The train blew past the brakes and launched off the end of the track. Luckily it was the empty first run of the morning. The news crew got great footage, though.' : stalled ? 'The train stalled and rolled back. A rescue crew walked riders down the catwalk while the news filmed it.' : 'The ride opened, but it doesn’t do what the client paid for.'}</p>
+      <ul class="reqs">${failed.map(x => `<li><span class="chk bad">✗</span><span>${x.label}</span><span class="val">${x.val}</span></li>`).join('')}</ul>
+      <p class="big" style="color:var(--bad)">−${loss} rep, no payment</p>`;
+  }
+  GS.active = null; saveGame();
+  modal(title, body, [{ label: 'Back to the client list', cls: 'go', fn: () => enterGame() }]);
+}
+
+/* ----- reset all ----- */
+$('resetAll').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (!b.classList.contains('armed')){
+    b.classList.add('armed'); b.textContent = 'Click again to erase everything';
+    clearTimeout(b._t); b._t = setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Reset all'; }, 4000); return;
+  }
+  clearTimeout(b._t); b.classList.remove('armed'); b.textContent = 'Reset all';
+  try { [KEY, GKEY, 'coasterlab-view', STYLEKEY, 'coasterlab-real'].forEach(k => localStorage.removeItem(k)); } catch (err) {}
+  STYLE = { ...STYLE_DEFAULT }; renderPaint(); setReal(false);
+  pendingRide = null; GS = freshGame(); SANDBOX = PRESETS.starter();
+  try { localStorage.removeItem(LKEY); } catch (err) {}
+  LS = freshLaunch(); LA = null; LR = null; lPlaying = false;
+  try { localStorage.removeItem(NKEY); } catch (err) {}
+  NS = freshNewton(); INS = null; NX = { mode: 'inspect', ci: 0, cWrong: [], cDone: false }; nPlaying = false;
+  setMode('fit'); MODE === 'game' ? enterGame() : MODE === 'launch' ? (renderLog(), renderLaunch()) : MODE === 'newton' ? renderNewton() : enterSandbox();
+  toast('Everything reset: designs, money and reputation.');
+});
+
+/* ---------- simple controls, paint shop, real-numbers switch ---------- */
+function syncSeg(){
+  $('segMu').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', Math.abs(+b.dataset.mu - D.mu) < 1e-6));
+  $('segMass').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.mass === D.mass));
+}
+$('segMu').addEventListener('click', e => { const b = e.target.closest('[data-mu]'); if (!b) return; D.mu = +b.dataset.mu; D.drag = true; syncGlobals(); changed(); });
+$('segMass').addEventListener('click', e => { const b = e.target.closest('[data-mass]'); if (!b) return; D.mass = +b.dataset.mass; syncGlobals(); changed(); });
+function saveStyle(){ try { localStorage.setItem(STYLEKEY, JSON.stringify(STYLE)); } catch (err) {} }
+function renderName(){
+  const n = (STYLE.name || '').trim();
+  $('cName').textContent = n || 'Untitled coaster'; $('cName').classList.toggle('empty', !n);
+  $('cNameEdit').textContent = n ? 'Rename' : 'Name it';
+  if (document.activeElement !== $('cNameIn')) $('cNameIn').value = STYLE.name || '';
+  $('cNameCount').textContent = `${(STYLE.name || '').length}/30`;
+}
+function drawPreview(){
+  const cv = $('cPreview'); if (!cv.getBoundingClientRect().width) return;
+  const { ctx, W, H } = fitCanvas(cv);
+  ctx.fillStyle = C.paper; ctx.fillRect(0, 0, W, H);
+  const ty = H - 16;
+  ctx.fillStyle = C.ground; ctx.fillRect(0, ty + 9, W, H - ty - 9);
+  ctx.strokeStyle = STYLE.track || C.track; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, ty); ctx.lineTo(W, ty); ctx.stroke();
+  const cw = Math.min(70, (W - 40) / 3.3), ch = cw * 0.34, carCol = c => STYLE.train || (c === 0 ? C.accent : C.car);
+  const x0 = W / 2 + cw * 1.15;
+  for (let c = 2; c >= 0; c--){ ctx.save(); ctx.translate(x0 - c * (cw + 6), ty - ch / 2 - 4); paintCar(ctx, cw, ch, c, carCol); ctx.restore(); }
+}
+function renderMascots(){
+  const box = $('mascotPick');
+  box.innerHTML = `<button type="button" data-mascot="" aria-pressed="${!STYLE.mascot}" title="No mascot"><span class="none" aria-hidden="true">∅</span>None</button>` +
+    Object.entries(MASCOTS).map(([k, M]) => `<button type="button" data-mascot="${k}" aria-pressed="${STYLE.mascot === k}" title="${M.name}"><canvas width="80" height="80" data-icon="${k}"></canvas>${M.name}</button>`).join('');
+  box.querySelectorAll('canvas[data-icon]').forEach(cv => { const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, 80, 80); drawMascot(ctx, cv.dataset.icon, 40, 46, 24); });
+  $('mascotMode').querySelectorAll('button').forEach(b => { b.setAttribute('aria-pressed', STYLE.mascotMode === b.dataset.mm); b.disabled = !STYLE.mascot; });
+}
+$('mascotPick').addEventListener('click', e => { const b = e.target.closest('[data-mascot]'); if (!b) return; STYLE.mascot = b.dataset.mascot || null; saveStyle(); renderPaint(); drawAll(); if (MODE === 'launch') drawLaunch(); });
+$('mascotMode').addEventListener('click', e => { const b = e.target.closest('[data-mm]'); if (!b || b.disabled) return; STYLE.mascotMode = b.dataset.mm; saveStyle(); renderPaint(); drawAll(); });
+$('cNameIn').addEventListener('input', e => { STYLE.name = e.target.value.slice(0, 30); saveStyle(); renderName(); });
+$('cNameEdit').addEventListener('click', () => { const i = $('cNameIn'); i.scrollIntoView({ block: 'center', behavior: REDUCED ? 'auto' : 'smooth' }); i.focus({ preventScroll: true }); });
+new ResizeObserver(() => drawPreview()).observe($('cPreview'));
+function renderPaint(){
+  renderName(); renderMascots(); drawPreview();
+  const mk = (list, key) => list.map(([c, name]) => `<button type="button" data-c="${c || ''}" aria-label="${name}" title="${name}" aria-pressed="${(STYLE[key] || null) === c}" style="background:${c || (key === 'train' ? 'linear-gradient(90deg,var(--accent) 50%,var(--car) 50%)' : 'var(--track)')}"></button>`).join('');
+  $('swTrain').innerHTML = mk(TRAIN_COLORS, 'train'); $('swTrack').innerHTML = mk(TRACK_COLORS, 'track');
+}
+[['swTrain', 'train'], ['swTrack', 'track']].forEach(([id, key]) => $(id).addEventListener('click', e => {
+  const b = e.target.closest('[data-c]'); if (!b) return;
+  STYLE[key] = b.dataset.c || null;
+  saveStyle(); renderPaint(); drawAll();
+}));
+function setReal(on){
+  REAL = on; $('realChk').checked = on; document.body.classList.toggle('real', on);
+  try { localStorage.setItem('coasterlab-real', on ? '1' : '0'); } catch (e) {}
+  if (T){ recompute(); }
+}
+$('realChk').addEventListener('change', e => setReal(e.target.checked));
+renderPaint();
+/* ---------- Launch Lab: F = m × a missions ---------- */
+const LMISSIONS = [
+  { title: 'Pick a motor', H: 14, Fb: 15000, rules: { min: 4, max: 7 },
+    story: 'Our first launch coaster! The train weighs 2,000 kg. Three motors are for sale. Calculate the acceleration each one gives, then choose the one that fits the rules.',
+    steps: [{ find: 'a', m: 2000, chooseF: [6000, 10000, 16000] }] },
+  { title: 'Heavier train', H: 18, Fb: 34000, rules: { min: 5, max: 8 },
+    story: 'The park bought a bigger train: 4,000 kg. The tower is taller too. Which motor works now?',
+    steps: [{ find: 'a', m: 4000, chooseF: [12000, 24000, 40000] }] },
+  { title: 'Order the motor', H: 18, Fb: 15000, rules: { min: 5, max: 7 },
+    story: 'The engineers want exactly 6 m/s² for a 2,000 kg train. How much force should we order from the motor factory? Whatever you order gets installed.',
+    steps: [{ find: 'F', m: 2000, a: 6 }] },
+  { title: 'Teen thrills', H: 26, Fb: 14250, rules: { min: 7, max: 9 },
+    story: 'A light, fast train for the teen crowd: 1,500 kg, launched at 8 m/s². How much force do the motors need?',
+    steps: [{ find: 'F', m: 1500, a: 8 }] },
+  { title: 'Pack the train', H: 18, Fb: 24000, rules: { min: 5, maxRiders: true },
+    story: 'Every rider is a ticket sold. The motors push with 20,000 N, and the tower needs at least 5 m/s². What is the heaviest the train can be? Your answer is how many riders we load.',
+    steps: [{ find: 'm', F: 20000, a: 5 }] },
+  { title: 'Taller tower', H: 22, Fb: 24000, rules: { min: 6, maxRiders: true },
+    story: 'Same idea, bigger tower. The motors push with 18,000 N, and now the tower needs at least 6 m/s². How heavy can the train be?',
+    steps: [{ find: 'm', F: 18000, a: 6 }] },
+  { title: 'Empty vs. full', H: 14, Fb: 24000, rules: { min: 4 },
+    story: 'The motors always push with 20,000 N. The 9 a.m. train is packed with riders. The 8 a.m. test train is empty. Calculate the acceleration for each.',
+    steps: [{ find: 'a', F: 20000, m: 4000, label: 'Packed train' }, { find: 'a', F: 20000, m: 2000, label: 'Empty train' }] },
+  { title: 'Your design', H: 18, Fb: 17000, rules: { min: 5, brakeF: 16000, maxRiders: true },
+    story: 'You’re the engineer now. Pick any motor and any train. It has to clear the tower and stop in the brakes. Heavier trains carry more riders.',
+    steps: [{ find: 'a', chooseF: [8000, 12000, 16000, 20000], chooseM: [2000, 3000, 4000] }] },
+];
+const UNIT = { F: 'N', m: 'kg', a: 'm/s²' };
+const NAME = { F: 'Force', m: 'Mass', a: 'Acceleration' };
+const fmtN = n => (Math.abs(n) >= 1e9 || (Math.abs(n) < 0.01 && n !== 0)) ? n.toExponential(2) : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+const LKEY = 'coasterlab-launch-v1';
+function freshLaunch(){ return { done: {}, log: [], cur: 0 }; }
+let LS = (() => { try { const v = JSON.parse(localStorage.getItem(LKEY)); if (v && v.done) return v; } catch (e) {} return freshLaunch(); })();
+function saveLaunch(){ try { localStorage.setItem(LKEY, JSON.stringify(LS)); } catch (e) {} }
+let LA = null;          // current attempt state
+let LP = null, LR = null, lT = 0, lPlaying = false, lLast = 0;
+const unlocked = i => i === 0 || !!LS.done[i - 1];
+
+function startMission(i){
+  if (!unlocked(i)) return;
+  LS.cur = i; saveLaunch();
+  const M = LMISSIONS[i];
+  LA = { mi: i, step: 0, wrong: false, hint: false, F: null, m: null, ans: '', stage: 'ask', last: null };
+  LP = lpath(M.H); LR = null; lT = 0; lPlaying = false;
+  renderLaunch();
+}
+function stepOf(){ return LMISSIONS[LA.mi].steps[LA.step]; }
+function needed(st){
+  // what the student must calculate, and the values the ride will use
+  const F = st.F ?? LA.F, m = st.m ?? LA.m;
+  if (st.find === 'a') return { F, m, correct: F && m ? F / m : null };
+  if (st.find === 'F') return { F: null, m: st.m, correct: st.m * st.a };
+  return { F: st.F, m: null, correct: st.F / st.a };
+}
+function ruleList(M){
+  const r = M.rules, out = [];
+  out.push(['🗼', `The ${M.H} m tower: acceleration must be <b>at least ${r.min} m/s²</b> or the train rolls back.`]);
+  if (r.max) out.push(['🛑', `The brakes can stop this train only if acceleration is <b>${r.max} m/s² or less</b>.`]);
+  else if (r.brakeF) out.push(['🛑', `The brakes can’t stop a train launched with <b>more than ${fmtN(r.brakeF)} N</b>.`]);
+  out.push(['😀', `Riders can handle <b>up to ${RIDER_MAX} m/s²</b>.`]);
+  return out;
+}
+function renderMissionChips(){
+  $('lMissions').innerHTML = LMISSIONS.map((M, i) => {
+    const d = LS.done[i], lock = !unlocked(i);
+    return `<li><button type="button" data-m="${i}" ${lock ? 'disabled' : ''} class="${d ? 'done' : ''}" aria-current="${LA && LA.mi === i}" aria-label="Mission ${i + 1}: ${M.title}${d ? ', ' + d + ' stars' : lock ? ', locked' : ''}" title="${M.title}">${lock ? '🔒' : i + 1}<small>${d ? '★'.repeat(d) : '&nbsp;'}</small></button></li>`;
+  }).join('');
+}
+$('lMissions').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (b && !lPlaying) startMission(+b.dataset.m); });
+
+function renderLaunch(){
+  if (!LA) { startMission(Math.min(LS.cur || 0, LMISSIONS.length - 1)); return; }
+  renderMissionChips();
+  const M = LMISSIONS[LA.mi], st = stepOf(), nd = needed(st);
+  const row = (k) => {
+    if (k === st.find) return `<div class="grow unknown"><span class="gk">${NAME[k]}</span><span class="gv">? ${UNIT[k]}</span></div>`;
+    const list = k === 'F' ? st.chooseF : k === 'm' ? st.chooseM : null;
+    if (list) return `<div class="grow"><span class="gk">${k === 'F' ? 'Pick a motor' : 'Pick a train'}</span><span class="opts" data-pick="${k}">${list.map(v => `<button type="button" data-v="${v}" aria-pressed="${LA[k] === v}" ${LA.stage !== 'ask' ? 'disabled' : ''}>${fmtN(v)} ${UNIT[k]}</button>`).join('')}</span></div>`;
+    const val = k === 'a' ? `${st.a} m/s²${st.find === 'm' ? ' (at least)' : ''}` : `${fmtN(st[k])} ${UNIT[k]}`;
+    return `<div class="grow"><span class="gk">${NAME[k]}</span><span class="gv">${val}</span></div>`;
+  };
+  const ready = st.find !== 'a' || (nd.F && nd.m);
+  const multi = M.steps.length > 1;
+  let html = `<div class="eyebrow">Mission ${LA.mi + 1} of ${LMISSIONS.length}${multi ? ` · ${st.label} (part ${LA.step + 1} of ${M.steps.length})` : ''}</div>
+    <h3>${M.title}</h3><p class="story">${M.story}</p>
+    <ul class="rules">${ruleList(M).map(([i, t]) => `<li><span aria-hidden="true">${i}</span><span>${t}</span></li>`).join('')}</ul>
+    <div class="givens">${['F', 'm', 'a'].map(row).join('')}</div>`;
+  if (LA.hint) html += `<div class="formula"><b>F = m × a</b><span>m = F ÷ a</span><span>a = F ÷ m</span><span class="note">F in newtons (N), m in kilograms (kg), a in m/s²</span></div>`;
+  if (LA.stage === 'ask'){
+    html += `<div class="ansrow"><label for="lAns">Your calculation: ${NAME[st.find].toLowerCase()} =</label>
+      <div class="ansbox"><input id="lAns" type="text" inputmode="decimal" autocomplete="off" value="${LA.ans}" placeholder="${ready ? 'type a number' : 'pick first'}" ${ready ? '' : 'disabled'}><span>${UNIT[st.find]}</span></div></div>
+      <div class="lbtns"><button type="button" class="go" id="lGo" disabled>Lock in &amp; launch</button>
+      ${LA.hint ? '' : '<button type="button" class="ghost" id="lHint">Show the formula (costs a star)</button>'}</div>`;
+  } else if (LA.stage === 'run'){
+    html += `<p class="note">Launching with your answer…</p>`;
+  } else html += resultHTML();
+  $('lCard').innerHTML = html;
+  const inp = $('lAns');
+  if (inp){
+    const sync = () => { LA.ans = inp.value; const v = parseAns(inp.value); $('lGo').disabled = !(ready && v > 0); };
+    inp.addEventListener('input', sync); inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !$('lGo').disabled) launchNow(); });
+    sync();
+  }
+  drawLaunch(); lGauges();
+}
+function parseAns(t){ const v = parseFloat(String(t).replace(/[,\s]/g, '')); return isFinite(v) ? v : NaN; }
+$('lCard').addEventListener('click', e => {
+  const pick = e.target.closest('[data-pick] [data-v]');
+  if (pick && LA.stage === 'ask'){ LA[pick.closest('[data-pick]').dataset.pick] = +pick.dataset.v; renderLaunch(); return; }
+  if (e.target.id === 'lHint'){ LA.hint = true; renderLaunch(); return; }
+  if (e.target.id === 'lGo') return launchNow();
+  if (e.target.id === 'lRetry'){ LA.stage = 'ask'; LA.ans = ''; LR = null; lT = 0; renderLaunch(); $('lAns')?.focus(); return; }
+  if (e.target.id === 'lNextStep'){ LA.step++; LA.stage = 'ask'; LA.ans = ''; LA.F = null; LA.m = null; LR = null; lT = 0; renderLaunch(); return; }
+  if (e.target.id === 'lNextMission') return startMission(LA.mi + 1);
+  if (e.target.id === 'lAgain') return startMission(LA.mi);
+});
+
+function launchNow(){
+  const M = LMISSIONS[LA.mi], st = stepOf(), nd = needed(st), ans = parseAns(LA.ans);
+  if (!(ans > 0)) return;
+  const F = st.find === 'F' ? ans : nd.F, m = st.find === 'm' ? ans : nd.m;
+  const mathOK = Math.abs(ans - nd.correct) <= Math.abs(nd.correct) * 0.01;
+  LR = lsim(LP, F, m, M.Fb);
+  LA.last = { F, m, a: F / m, ans, mathOK, correct: nd.correct, res: LR.res };
+  LA.stage = 'run';
+  LS.log.unshift({ n: (LS.log[0]?.n || 0) + 1, mi: LA.mi + 1, F, m, a: F / m, res: LR.res });
+  LS.log = LS.log.slice(0, 40); saveLaunch(); renderLog();
+  lT = 0; lPlaying = true; lLast = 0; $('lReplay').disabled = true;
+  renderLaunch(); requestAnimationFrame(lTick);
+}
+function lTick(ts){
+  if (!lPlaying) return;
+  const dt = lLast ? Math.min(0.05, (ts - lLast) / 1000) : 0; lLast = ts;
+  lT += dt * +$('lSpeed').value;
+  const end = LR.frames[LR.frames.length - 1].t;
+  if (lT >= end){ lT = end; lPlaying = false; $('lReplay').disabled = false; if (LA.stage === 'run') finishLaunch(); }
+  drawLaunch(); lGauges();
+  if (lPlaying) requestAnimationFrame(lTick);
+}
+$('lReplay').addEventListener('click', () => { if (!LR || lPlaying) return; lT = 0; lPlaying = true; lLast = 0; $('lReplay').disabled = true; requestAnimationFrame(lTick); });
+
+function finishLaunch(){
+  const L = LA.last, M = LMISSIONS[LA.mi];
+  const success = L.mathOK && L.res === 'ok';
+  if (!success) LA.wrong = true;
+  LA.stage = 'result';
+  if (success && LA.step === M.steps.length - 1){
+    const stars = 1 + (LA.wrong ? 0 : 1) + (LA.hint ? 0 : 1);
+    LS.done[LA.mi] = Math.max(stars, LS.done[LA.mi] || 0); saveLaunch();
+    LA.stars = stars;
+  }
+  renderLaunch();
+}
+function workText(st, L){
+  if (st.find === 'a') return `a = F ÷ m = ${fmtN(L.F)} ÷ ${fmtN(L.m)} = ${fmtN(L.correct)} m/s²`;
+  if (st.find === 'F') return `F = m × a = ${fmtN(st.m)} × ${st.a} = ${fmtN(L.correct)} N`;
+  return `m = F ÷ a = ${fmtN(st.F)} ÷ ${st.a} = ${fmtN(L.correct)} kg`;
+}
+function whyText(L, M){
+  const a = fmtN(L.a);
+  return { rollback: `At ${a} m/s², the train wasn’t going fast enough to get over the ${M.H} m tower, so it rolled back.`,
+    crawl: `At ${a} m/s², the train barely moved off the launch track.`,
+    crash: `At ${a} m/s², the train was going too fast for the brakes and flew off the end.`,
+    ouch: `${a} m/s² is more than riders can handle (${RIDER_MAX} m/s² max).`, ok: '' }[L.res];
+}
+function resultHTML(){
+  const L = LA.last, M = LMISSIONS[LA.mi], st = stepOf(), last = LA.step === M.steps.length - 1;
+  const success = L.mathOK && L.res === 'ok';
+  const yours = `You said ${NAME[st.find].toLowerCase()} = <b>${fmtN(L.ans)} ${UNIT[st.find]}</b>`;
+  let cls, title, body, btns;
+  if (success){
+    cls = 'ok'; title = last ? 'Mission complete!' : 'Nailed it!';
+    body = `<p>${yours}. ✓ Correct, and the ride works.</p><div class="work">${workText(st, L)}</div>`;
+    if (LA.mi === 7){ body += L.m >= 3000 ? '<p>Max riders! That’s the heaviest train that still works.</p>' : '<p>It works! Is there a heavier train that would also work? More riders, more tickets.</p>'; }
+    if (st.label === 'Empty train') body += '<p><b>Same force, half the mass, double the acceleration.</b> That’s why the empty test train always feels wilder.</p>';
+    if (last) body += `<p>${starsRow(LA.stars)}</p><p class="note">★ finished · ★ no wrong tries · ★ no formula hint</p>`;
+    btns = last ? (LA.mi < LMISSIONS.length - 1 ? `<button type="button" class="go" id="lNextMission">Next mission</button><button type="button" id="lAgain">Replay this mission</button>` : `<button type="button" id="lAgain">Replay this mission</button>`) : `<button type="button" class="go" id="lNextStep">Next: ${M.steps[LA.step + 1].label}</button>`;
+    if (last && LA.mi === LMISSIONS.length - 1) body += '<p><b>You finished every mission.</b> Go back and earn any missing stars.</p>';
+  } else if (L.mathOK){
+    cls = 'mid'; title = 'Your math is right!';
+    body = `<p>${yours}. ✓ Correct. But ${whyText(L, M).replace(/^A/, 'a')}</p><p>Pick a different ${st.chooseM ? 'motor or train' : 'motor'} and try again.</p>`;
+    btns = `<button type="button" class="go" id="lRetry">Try again</button>`;
+  } else {
+    const t = { rollback: 'Rollback!', crawl: 'Barely moved', crash: 'KABOOM!', ouch: 'Way too intense!', ok: 'The ride works, but…' }[L.res];
+    cls = L.res === 'ok' ? 'mid' : 'bad'; title = t;
+    const okButWrong = st.find === 'm' && L.res === 'ok' && L.ans < L.correct ? 'The train made it, but you left riders on the platform. A heavier train would still work.' : 'Your number worked by luck, but it isn’t what the calculation gives.';
+    body = `<p>${yours}. ✗ Not quite. ${L.res === 'ok' ? okButWrong : whyText(L, M)}</p>
+      <p class="note">Check your work. Which two numbers do you know, and should you multiply or divide?</p>`;
+    btns = `<button type="button" class="go" id="lRetry">Try again</button>`;
+  }
+  return `<div class="lres ${cls}"><h4>${title}</h4>${body}</div><div class="lbtns">${btns}</div>`;
+}
+function starsRow(n){ return `<span class="stars" aria-label="${n} of 3 stars">${[0, 1, 2].map(i => i < n ? '★' : '<span class="off">★</span>').join('')}</span>`; }
+
+function renderLog(){
+  const rows = LS.log;
+  const word = { ok: '✓ Stopped safely', rollback: 'Rolled back', crawl: 'Barely moved', crash: '💥 Flew off', ouch: '🤢 Too intense' };
+  $('lLog').innerHTML = rows.length ? rows.map(r => `<tr><td>${r.n}</td><td>${r.mi}</td><td>${fmtN(r.F)} N</td><td>${fmtN(r.m)} kg</td><td>${fmtN(r.a)} m/s²</td><td>${word[r.res]}</td></tr>`).join('')
+    : '<tr class="empty"><td colspan="6">No launches yet.</td></tr>';
+}
+$('lClearLog').addEventListener('click', () => { LS.log = []; saveLaunch(); renderLog(); });
+
+function lFrame(){ if (!LR) return null; const i = Math.min(LR.frames.length - 1, Math.max(0, Math.floor(lT * 60))); return LR.frames[i]; }
+function lGauges(){
+  if (!LA) return;
+  const st = stepOf(), f = (LR && LA.stage !== 'ask') ? lFrame() : null, L = LA.last;
+  const show = (id, k, val) => { $(id).innerHTML = val; };
+  if (f && L){
+    show('lgF', 'F', f.force ? `${fmtN(Math.abs(f.force))}<small>N</small>` : '0<small>N</small>');
+    $('lgFs').textContent = f.force > 0 ? 'motor pushing forward' : f.force < 0 ? 'brakes pushing back' : 'no push';
+    show('lgM', 'm', `${fmtN(L.m)}<small>kg</small>`);
+    const acc = f.phase === 'fly' || f.phase === 'boom' ? null : f.acc;
+    const accR = acc == null ? null : (Math.abs(acc) < 0.05 ? 0 : Math.round(acc * 10) / 10);
+    show('lgA', 'a', accR == null ? '—' : `${fmtN(accR)}<small>m/s²</small>`);
+    $('lgAs').textContent = acc == null ? 'off the track!' : Math.abs(acc) < 0.05 ? 'steady speed' : acc > 0 ? `${fmtN(Math.round(acc * 10) / 10)} m/s faster every second` : `${fmtN(Math.round(-acc * 10) / 10)} m/s slower every second`;
+    $('lgV').innerHTML = `${(Math.abs(f.v)).toFixed(1)}<small>m/s</small>`;
+    $('lgVs').textContent = f.v < -0.1 ? 'going backward!' : f.v < 0.2 ? 'stopped' : `${(Math.abs(f.v) * 2.237).toFixed(0)} mph`;
+  } else {
+    const nd = needed(st);
+    const F = st.find === 'F' ? null : nd.F, m = st.find === 'm' ? null : nd.m;
+    show('lgF', 'F', F ? `${fmtN(F)}<small>N</small>` : '?'); $('lgFs').textContent = 'motor push';
+    show('lgM', 'm', m ? `${fmtN(m)}<small>kg</small>` : '?');
+    show('lgA', 'a', st.find === 'a' ? '?' : `${st.a}<small>m/s²</small>`); $('lgAs').textContent = 'speed change per second';
+    $('lgV').innerHTML = '0<small>m/s</small>'; $('lgVs').textContent = 'in the station';
+  }
+  const ph = f ? f.phase : 'station';
+  const a = L ? fmtN(Math.round(L.a * 100) / 100) : '';
+  $('lState').innerHTML = !f ? 'The train waits in the station. Forces are <b>balanced</b>, so it stays still.' : {
+    station: 'The train waits in the station. Forces are <b>balanced</b>, so it stays still.',
+    launch: `The motors push forward: an <b>unbalanced force</b>. The train speeds up by ${a} m/s every second.`,
+    coast: 'No push, no friction: forces are <b>balanced</b>, so the train keeps the same speed.',
+    up: 'Climbing: gravity pulls back against the motion, an <b>unbalanced force</b> that slows the train down.',
+    top: 'Over the top!',
+    down: 'Diving: gravity pulls the train down the slope, an <b>unbalanced force</b> that speeds it up.',
+    rollback: 'Not enough speed! Gravity wins and the train rolls <b>backward</b>.',
+    catch: 'The launch motors catch the train and stop it. Rollbacks happen on real launch coasters too.',
+    brake: 'The brakes push backward: an <b>unbalanced force</b> against the motion, so the train slows down.',
+    stopped: 'Stopped safely. Forces are <b>balanced</b> again.',
+    crawl: 'The push was so small the train barely moved.',
+    fly: 'Too fast for the brakes. The train <b>flies off the end</b>!',
+    boom: 'KABOOM.' }[ph];
+}
+
+function drawLaunch(){
+  if (!LP) return;
+  const cv = $('lCv'), { ctx, W, H } = fitCanvas(cv);
+  const f = (LR && LA.stage !== 'ask') ? lFrame() : null;
+  const flyX = LR && LR.res === 'crash' ? Math.min(LP.b1 + 60, Math.max(...LR.frames.filter(q => q.fly).map(q => q.fly.x), LP.b1) + 8) : LP.b1 + 6;
+  const xMax = Math.max(LP.b1 + 8, flyX), yMax = LP.H + 6;
+  const scX = (W - 24) / xMax, scY = Math.min((H - 64) / yMax, scX * 3), sc = scX, ox = 12, gy = H - 24;
+  const sx = x => ox + x * scX, sy = y => gy - y * scY;
+  const sth = th => Math.atan(Math.tan(th) * scY / scX);
+  const mono = getComputedStyle(document.body).getPropertyValue('--f-mono');
+  ctx.fillStyle = C.paper; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  for (let x = 0; x <= xMax; x += 10){ ctx.beginPath(); ctx.moveTo(Math.round(sx(x)) + .5, 0); ctx.lineTo(Math.round(sx(x)) + .5, gy); ctx.stroke(); }
+  for (let y = 10; y <= yMax + 10; y += 10){ ctx.beginPath(); ctx.moveTo(0, Math.round(sy(y)) + .5); ctx.lineTo(W, Math.round(sy(y)) + .5); ctx.stroke(); }
+  ctx.fillStyle = C.ground; ctx.fillRect(0, gy, W, H - gy);
+  // zone fins
+  const fins = (x0, x1, col) => { ctx.fillStyle = col; for (let x = x0; x < x1; x += 2){ ctx.fillRect(sx(x) + 1, sy(1) + 4, Math.max(2, scX * 1.1), 5); } };
+  fins(10, 10 + LLAUNCH, C.ok); fins(LP.b0, LP.b1, C.warn);
+  ctx.font = `600 11px ${mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = C.ok; ctx.fillText('LAUNCH 40 m', sx(10 + LLAUNCH / 2), sy(1) + 10);
+  ctx.fillStyle = C.warn; ctx.fillText('BRAKES', sx((LP.b0 + LP.b1) / 2), sy(1) + 10);
+  // supports
+  ctx.strokeStyle = C.support; ctx.lineWidth = Math.max(1, sc * 0.2); ctx.beginPath();
+  for (let x = LP.t0 + 2; x < LP.t1; x += 3){ const i = Math.round(x / 0.1); ctx.moveTo(sx(x), sy(LP.Y[i])); ctx.lineTo(sx(x), gy); } ctx.stroke();
+  // tower label
+  ctx.fillStyle = C.muted; ctx.textBaseline = 'bottom';
+  ctx.fillText(`${LP.H} m tower`, sx((LP.t0 + LP.t1) / 2), sy(LP.H + 1) - 4);
+  // track
+  ctx.strokeStyle = STYLE.track || C.track; ctx.lineWidth = Math.max(3, sc * 0.5); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath(); for (let i = 0; i < LP.X.length; i += 3) ctx.lineTo(sx(LP.X[i]), sy(LP.Y[i])); ctx.lineTo(sx(LP.b1), sy(1)); ctx.stroke();
+  ctx.fillStyle = C.support; ctx.fillRect(sx(0.5), sy(1) + 3, 9 * sc, Math.max(3, sc * 0.6));
+  ctx.fillStyle = C.bad; ctx.fillRect(sx(LP.b1) - 2, sy(1) - Math.max(10, sc * 2.4), Math.max(4, sc * 0.7), Math.max(10, sc * 2.4));
+  // train
+  const carCol = c => STYLE.train || (c === 0 ? C.accent : C.car);
+  const carLen = Math.max(14, 3.6 * sc), carH = Math.max(7, Math.min(12, 1.3 * sc));
+  const car = (X, Y, ang, c) => { ctx.save(); ctx.translate(X, Y); ctx.rotate(ang); paintCar(ctx, carLen - 2, carH, c, carCol); ctx.restore(); };
+  if (f && f.fly){
+    const X = sx(f.fly.x), Y = sy(f.fly.y), a = f.fly.age;
+    for (let c = 0; c < 3; c++) car(X - c * (carLen + 4 + a * 12), Y + c * a * a * 8, -sth(f.fly.th) + a * (2.5 + c) * (c % 2 ? -1 : 1), c);
+  } else if (f && f.boom){
+    drawBoom(ctx, sx(f.boom.x), gy, f.boom.age, sc, carCol);
+  } else {
+    const sHead = f ? f.s : 9;
+    let headPos = null;
+    for (let c = 0; c < 3; c++){
+      const sMid = sHead - (c + 0.5) * (carLen / sc);
+      const k = lat(LP, sMid), th = sth(k.th), X = sx(k.x) - Math.sin(th) * carH * 0.6, Y = sy(k.y) - Math.cos(th) * carH * 0.6;
+      car(X, Y, -th, c);
+      if (c === 0) headPos = { X, Y, th };
+    }
+    // force arrows
+    if (f && f.force && headPos){
+      const Fm = Math.abs(f.force), len = Math.min(150, 26 + 70 * Math.log10(1 + Fm / 4000));
+      const fwd = f.force > 0, col = fwd ? C.ok : C.bad;
+      const tailX = fwd ? headPos.X - carLen * 3.2 - len : headPos.X + carLen * 0.6 + len, tipX = fwd ? headPos.X - carLen * 3.2 + 2 : headPos.X + carLen * 0.6;
+      const yA = headPos.Y - carH * 2.2;
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'butt';
+      const x0 = fwd ? tailX : tailX, x1 = fwd ? tipX : tipX, dir = fwd ? 1 : -1;
+      ctx.beginPath(); ctx.moveTo(x0, yA); ctx.lineTo(x1 - dir * 8, yA); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x1, yA); ctx.lineTo(x1 - dir * 11, yA - 7); ctx.lineTo(x1 - dir * 11, yA + 7); ctx.closePath(); ctx.fill();
+      ctx.font = `600 12px ${mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(`${fwd ? 'motor' : 'brakes'} ${fmtN(Fm)} N`, (x0 + x1) / 2, yA - 9);
+    }
+  }
+}
+
+function enterLaunch(){
+  if (playing){ playing = false; updatePlayBtn(); }
+  nPlaying = false;
+  MODE = 'launch'; document.body.classList.remove('game', 'newton'); document.body.classList.add('launch');
+  $('tabGame').setAttribute('aria-selected', 'false'); $('tabSand').setAttribute('aria-selected', 'false'); $('tabNewton').setAttribute('aria-selected', 'false'); $('tabLaunch').setAttribute('aria-selected', 'true');
+  setHash('launch-lab'); renderLog(); renderLaunch();
+}
+function setHash(h){ try { history.replaceState(null, '', '#' + h); } catch (e) {} }
+$('tabLaunch').addEventListener('click', () => MODE !== 'launch' && enterLaunch());
+new ResizeObserver(() => { if (MODE === 'launch') drawLaunch(); }).observe($('lCv'));
+
+/* ---------- Newton's Laws: ride inspector + quick cases (TEKS 8.7B) ---------- */
+const Q = (q, opts) => ({ q, opts });
+const NMOMENTS = {
+  station: { title: 'Waiting in the station', laws: [1], net: 'Forces: <b>balanced</b> → the train stays at rest',
+    scene: 'The train sits still in the station. Gravity pulls it down, and the track pushes it up.',
+    qs: [Q('Which law explains why the train stays still?', [
+      ['Newton’s 1st law: the forces are balanced, so the train stays at rest', 1],
+      ['Newton’s 2nd law: the train is accelerating', 0, 'The train’s speed isn’t changing, so it isn’t accelerating.'],
+      ['Newton’s 3rd law: the train pushes on the track', 0, 'That’s true, but it doesn’t explain why the train stays still. Are the forces balanced?'],
+      ['No forces act on a train that isn’t moving', 0, 'Gravity and the track both push on it. They cancel out.']])],
+    stem: 'The train stays at rest because the forces on it are ________. Newton’s ___ law says an object at rest stays at rest unless an ____________ force acts on it.' },
+  lift: { title: 'Climbing the lift hill', laws: [1], net: 'Forces: <b>balanced</b> → steady speed, even while moving',
+    scene: 'The chain pulls the train up the hill at a steady speed. It’s moving, but its speed isn’t changing.',
+    qs: [Q('Which statement is true?', [
+      ['The forces are balanced, so the speed stays the same (Newton’s 1st law)', 1],
+      ['The train is moving, so the forces must be unbalanced', 0, 'Moving doesn’t mean unbalanced. Unbalanced forces change speed or direction, and the speed here is steady.'],
+      ['Gravity stops pulling on the train while the chain pulls it', 0, 'Gravity never turns off. The chain’s pull balances it.'],
+      ['The chain pulls with less force than gravity', 0, 'If gravity won, the train would slow down and roll back.']])],
+    stem: 'Even though the train is moving, its speed stays the same because the forces are ________. This is Newton’s ___ law: an object in motion keeps the same speed and direction unless an ____________ force acts on it.' },
+  drop: { title: 'Diving down the first drop', laws: [2], net: 'Forces: <b>unbalanced</b> → the train speeds up',
+    scene: 'The train races down the first drop and goes faster every second.',
+    qs: [Q('Which law best explains why the train speeds up?', [
+      ['Newton’s 2nd law: an unbalanced force (gravity) makes the train accelerate', 1],
+      ['Newton’s 1st law: the train keeps moving because of inertia', 0, 'Inertia explains why it keeps moving, not why it speeds up. Speeding up needs an unbalanced force.'],
+      ['Newton’s 3rd law: the train pushes on the track', 0, 'The train and track do push on each other, but that pair doesn’t make the train faster.'],
+      ['The train gains mass as it goes down', 0, 'Mass doesn’t change during a ride. Look for an unbalanced force.']])],
+    stem: 'The train speeds up because an ____________ force from ________ pulls it down the hill. Newton’s ___ law says an unbalanced force causes ________________.' },
+  valley: { title: 'Bottom of the valley', laws: [2, 3], net: 'Forces: <b>unbalanced</b> → the train curves upward',
+    scene: 'At the bottom of the hill, the track curves up and riders get squished into their seats.',
+    qs: [Q('The seat pushes up on a rider. What does the rider do to the seat?', [
+      ['Pushes down on the seat with an equal force (Newton’s 3rd law)', 1],
+      ['Pushes down with a smaller force', 0, 'The two forces in an action-reaction pair are always equal in size.'],
+      ['Nothing, because riders can’t push on seats', 0, 'Forces come in pairs. If the seat pushes the rider, the rider pushes the seat.'],
+      ['Pushes up on the seat too', 0, 'The two forces in a pair point in opposite directions.']]),
+      Q('Newton’s laws often act at the same time. Which laws are acting right now?', [
+      ['The 2nd and 3rd laws: an unbalanced force curves the train upward, and the seat and rider push on each other', 1],
+      ['Only the 3rd law', 0, 'The train is also changing direction. Which law explains a change in motion?'],
+      ['Only the 1st law', 0, 'The train’s motion is changing here, so the forces aren’t balanced.'],
+      ['No laws, because the train isn’t speeding up', 0, 'Changing direction counts as acceleration too.']])],
+    stem: 'The seat pushes ____ on the rider, and the rider pushes ____ on the seat with an ________ force (Newton’s ___ law). At the same time, an unbalanced force makes the train change ____________ (Newton’s ___ law).' },
+  loop: { title: 'Upside down in the loop', laws: [1, 2], net: 'Forces: <b>unbalanced</b> → the train curves around the loop',
+    scene: 'At the top of the loop, riders are upside down, but they stay pressed into their seats.',
+    qs: [Q('Why don’t riders fall out at the top of the loop?', [
+      ['Inertia keeps them moving forward, so they press against the seat while the track curves the train (Newton’s 1st law)', 1],
+      ['Gravity turns off when you’re upside down', 0, 'Gravity always pulls down, even upside down.'],
+      ['Riders have no mass in the loop', 0, 'Mass doesn’t change. Riders have the same mass the whole ride.'],
+      ['The seat pulls riders up like a magnet', 0, 'No magnets here. Think about what riders’ bodies keep trying to do.']])],
+    stem: 'Riders keep trying to move in a ____________ line because of ________ (Newton’s ___ law). The track pushes the train into a curve, which is an ____________ force (Newton’s ___ law).' },
+  brakes: { title: 'Hitting the brakes', laws: [1, 2, 3], net: 'Forces: <b>unbalanced</b> → the train slows down',
+    scene: 'The brakes grab the train and it slows down fast. Riders lurch forward against their lap bars.',
+    qs: [Q('Which law explains why riders lurch forward?', [
+      ['Newton’s 1st law: riders keep moving forward because of inertia', 1],
+      ['Newton’s 2nd law: the brakes push riders forward', 0, 'The brakes push the train backward, not the riders forward.'],
+      ['Newton’s 3rd law: the riders push on the brakes', 0, 'Riders don’t touch the brakes. What do their bodies keep doing?'],
+      ['Riders get heavier when the train stops', 0, 'Mass doesn’t change. Their bodies just keep moving.']]),
+      Q('Which part of braking is Newton’s 3rd law?', [
+      ['The brakes push backward on the train, and the train pushes forward on the brakes', 1],
+      ['The train slows down because of an unbalanced force', 0, 'True, but that’s the 2nd law: force changes speed.'],
+      ['The riders keep moving forward', 0, 'That’s inertia: the 1st law.'],
+      ['The train stops because it runs out of energy', 0, 'The brakes stop it. Look for two things pushing on each other.']])],
+    stem: 'The brakes push ________ on the train, so it slows down (Newton’s ___ law). The riders keep moving ________ because of ________ (Newton’s ___ law). The brakes and train push on each other with ________ forces (Newton’s ___ law).' },
+};
+const LAWS3 = ['Newton’s 1st law (inertia)', 'Newton’s 2nd law (force and acceleration)', 'Newton’s 3rd law (action and reaction)'];
+const PAIRS = ['The 1st and 2nd laws', 'The 2nd and 3rd laws', 'The 1st and 3rd laws'];
+const NCASES = [
+  { sys: 'Vehicle restraints', title: 'Sudden stop', ans: 0, scene: 'A car stops suddenly. The passenger keeps sliding forward until the seatbelt catches them.', q: 'Which law best explains why the passenger slides forward?',
+    hint: 'Nothing pushes the passenger forward. What does a moving body keep doing?', why: 'The passenger’s body keeps moving because of inertia until the seatbelt applies an unbalanced force.',
+    stem: 'The passenger kept moving forward because of ________ (Newton’s ___ law). The seatbelt is the ____________ force that stops them.' },
+  { sys: 'Vehicle restraints', title: 'Airbag', ans: 2, scene: 'In a crash, the passenger presses into the airbag. The airbag pushes back on the passenger just as hard.', q: 'Which law best explains this?',
+    hint: 'Look for two things pushing on each other.', why: 'The passenger and airbag push on each other with equal forces in opposite directions.',
+    stem: 'The passenger pushes on the ________, and the airbag pushes back on the ________ with an ________ force in the ________ direction (Newton’s ___ law).' },
+  { sys: 'Sports', title: 'Hard kick', ans: 1, scene: 'Maya kicks a soccer ball gently, then kicks it again much harder. The harder kick makes the ball speed up much more.', q: 'Which law best explains this?',
+    hint: 'What changed between the two kicks, and what happened to the ball’s speed?', why: 'A bigger force gives the same ball a bigger acceleration.',
+    stem: 'The harder kick is a bigger ________, so the ball has a bigger ________________ (Newton’s ___ law).' },
+  { sys: 'Sports', title: 'Soccer ball vs. bowling ball', ans: 1, scene: 'Maya kicks a soccer ball and a bowling ball with the same force. The soccer ball zooms away. The bowling ball barely rolls.', q: 'Which law best explains this?',
+    hint: 'The force was the same. What was different about the two balls?', why: 'With the same force, the object with more mass accelerates less.',
+    stem: 'With the same force, the object with more ________ has less ________________ (Newton’s ___ law).' },
+  { sys: 'Sports', title: 'Swimmer', ans: 2, scene: 'A swimmer pushes the water backward with her arms, and she moves forward.', q: 'Which law best explains how she moves forward?',
+    hint: 'She pushes on the water. What does the water do back?', why: 'She pushes the water backward, and the water pushes her forward with an equal force.',
+    stem: 'The swimmer pushes the water ________, and the water pushes the swimmer ________ (Newton’s ___ law).' },
+  { sys: 'Rocket launches', title: 'Liftoff', ans: 2, scene: 'A rocket’s engines push hot gas down. The gas pushes the rocket up.', q: 'Which law best explains liftoff?',
+    hint: 'Two things are pushing on each other in opposite directions.', why: 'The rocket pushes gas down, and the gas pushes the rocket up with an equal force.',
+    stem: 'The rocket pushes gas ________, and the gas pushes the rocket ________ with an ________ force (Newton’s ___ law).' },
+  { sys: 'Rocket launches', title: 'Burning fuel', ans: 1, scene: 'As a rocket burns fuel, it gets lighter. The engines push just as hard, so the rocket speeds up faster and faster.', q: 'Which law best explains why it speeds up faster?',
+    hint: 'The force stays the same. What changes?', why: 'Same force, less mass, so the acceleration gets bigger.',
+    stem: 'The force stays the same, but the mass gets ________, so the acceleration gets ________ (Newton’s ___ law).' },
+  { sys: 'Amusement park rides', title: 'Bumper cars', ans: 2, scene: 'Two bumper cars crash head-on, and both bounce backward.', q: 'Which law best explains why both cars bounce back?',
+    hint: 'Each car pushes on the other one.', why: 'Each car pushes on the other with an equal force in the opposite direction.',
+    stem: 'Each car pushes on the other with an ________ force in the ________ direction (Newton’s ___ law).' },
+  { sys: 'Sports', title: 'Hockey puck', ans: 0, scene: 'A hockey puck slides across smooth ice and keeps going a long way at almost the same speed.', q: 'Which law best explains this?',
+    hint: 'Almost no friction is acting. What does a moving object do on its own?', why: 'With almost no unbalanced force, the puck keeps moving at the same speed.',
+    stem: 'The puck keeps moving at almost the same speed because almost no ____________ force from friction acts on it (Newton’s ___ law).' },
+  { sys: 'Sports', title: 'Skateboard and curb', ans: 0, scene: 'A skateboard hits a curb and stops. The rider keeps going and flies forward onto the grass.', q: 'Which law best explains why the rider flies forward?',
+    hint: 'The curb stopped the board, not the rider.', why: 'The rider’s body keeps moving because of inertia after the board stops.',
+    stem: 'The curb stopped the ________, but the rider kept moving because of ________ (Newton’s ___ law).' },
+  { sys: 'Earth’s tectonic activity', title: 'Pushing plates', ans: 2, scene: 'Two of Earth’s tectonic plates push against each other. Each plate pushes on the other with the same force.', q: 'Which law best explains this?',
+    hint: 'Same force, opposite directions, two objects.', why: 'The plates push on each other with equal and opposite forces.',
+    stem: 'Each plate pushes on the other with an ________ force in the ________ direction (Newton’s ___ law).' },
+  { sys: 'Sports', title: 'Jump shot', pair: true, ans: 1, scene: 'A basketball player pushes down hard on the floor and jumps. The floor pushes up on her, and she speeds up into the air.', q: 'Which TWO laws act at the same time?',
+    hint: 'Find a pair of pushes, and find a change in speed.', why: 'She and the floor push on each other (3rd law), and that unbalanced force makes her accelerate upward (2nd law).',
+    stem: 'She pushes ________ on the floor, and the floor pushes ________ on her (Newton’s ___ law). That unbalanced force makes her ________________ upward (Newton’s ___ law).' },
+  { sys: 'Vehicle restraints', title: 'Seatbelt in a crash', pair: true, ans: 2, scene: 'In a crash, the passenger keeps moving forward. The seatbelt pushes back on the passenger, and the passenger pushes forward on the seatbelt.', q: 'Which TWO laws act at the same time?',
+    hint: 'Find inertia, and find a pair of pushes.', why: 'The passenger keeps moving because of inertia (1st law), and the seatbelt and passenger push on each other equally (3rd law).',
+    stem: 'The passenger keeps moving because of ________ (Newton’s ___ law). The seatbelt and passenger push on each other with ________ forces (Newton’s ___ law).' },
+];
+
+const NKEY = 'coasterlab-newton-v1';
+const freshNewton = () => ({ cases: {}, certs: 0 });
+let NS = (() => { try { const v = JSON.parse(localStorage.getItem(NKEY)); if (v && v.cases) return v; } catch (e) {} return freshNewton(); })();
+const saveNewton = () => { try { localStorage.setItem(NKEY, JSON.stringify(NS)); } catch (e) {} };
+let NX = { mode: 'inspect', ci: 0, cWrong: [], cDone: false };
+let INS = null, nT = 0, nTarget = 0, nPlaying = false, nLast = 0, nCam = null;
+const ord = n => ['1st', '2nd', '3rd'][n - 1];
+const sigOf = d => JSON.stringify([d.lift, d.mass, d.mu, d.drag, d.els.map(e => [e.type, e.h, e.len || 0])]);
+
+function findMoments(T, R){
+  const F = R.frames, out = [];
+  const firstAt = test => F.findIndex(test);
+  out.push({ kind: 'station', i: 0 });
+  const liftSec = T.sections.find(x => x.kind === 'lift');
+  const iLift = firstAt(f => f.s >= (liftSec.s0 + T.liftEnd) / 2);
+  if (iLift > 0) out.push({ kind: 'lift', i: iLift });
+  const iTop = firstAt(f => f.s >= T.liftEnd);
+  let iVal = -1;
+  for (let i = Math.max(iTop, 1) + 1; i < F.length - 1; i++){
+    if (F[i].s >= T.brakeStart) break;
+    if (F[i].y <= F[i - 1].y && F[i].y < F[i + 1].y && F[i].y < T.top - 3){ iVal = i; break; }
+  }
+  if (iTop > 0 && iVal > 0){
+    const mid = (T.top + F[iVal].y) / 2;
+    const iDrop = F.findIndex((f, i) => i > iTop && i < iVal && f.y <= mid);
+    if (iDrop > 0) out.push({ kind: 'drop', i: iDrop });
+    out.push({ kind: 'valley', i: iVal });
+  }
+  const loopSec = T.sections.find(x => x.kind === 'loop');
+  if (loopSec){ const iL = firstAt(f => f.s >= (loopSec.s0 + loopSec.s1) / 2); if (iL > 0) out.push({ kind: 'loop', i: iL }); }
+  const iB = firstAt(f => f.s >= T.brakeStart + 4);
+  if (iB > 0) out.push({ kind: 'brakes', i: iB });
+  return out.sort((a, b) => a.i - b.i).map(m => ({ ...m, t: F[m.i].t }));
+}
+
+function newInspection(design){
+  const d = JSON.parse(JSON.stringify(design));
+  const T = buildTrack(d), R = simulate(T, d);
+  INS = { d, T, R, sig: sigOf(design), k: -1, q: 0, wrong: [], answered: false, first: [], moments: [], blocked: null };
+  if (R.stall) INS.blocked = 'stall'; else if (R.crash) INS.blocked = 'crash';
+  else INS.moments = findMoments(T, R);
+  nT = 0; nTarget = 0; nPlaying = false; nCam = null;
+}
+function nFrame(){ const F = INS.R.frames; return F[Math.min(F.length - 1, Math.max(0, Math.round(nT * 60)))]; }
+
+function renderNewton(){
+  $('nSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.nm === NX.mode));
+  $('nStage').hidden = NX.mode !== 'inspect'; $('nCaseGrid').hidden = NX.mode !== 'cases';
+  if (NX.mode === 'cases') return renderCase();
+  if (!INS || (INS.k === -1 && INS.sig !== sigOf(SANDBOX))) newInspection(SANDBOX);
+  const nm = (STYLE.name || '').trim();
+  $('nName').textContent = nm || 'Untitled coaster'; $('nName').classList.toggle('empty', !nm);
+  const C2 = $('nCard');
+  if (INS.blocked){
+    C2.innerHTML = `<div class="eyebrow">Ride inspector</div><h3>Not ready for inspection</h3>
+      <p class="story">${INS.blocked === 'stall' ? 'Your coaster stalls and rolls back before the end.' : 'Your coaster flies off the end of the track.'} The inspector only rides coasters that make it back safely.</p>
+      <div class="lbtns"><button type="button" class="go" id="nFix">Fix it in Sandbox</button><button type="button" id="nStarter">Inspect the starter coaster</button></div>`;
+  } else if (INS.k === -1){
+    C2.innerHTML = `<div class="eyebrow">Ride inspector</div><h3>Inspect ${nm ? esc(nm) : 'your coaster'}</h3>
+      <p class="story">The inspector will ride the coaster you built in Sandbox and stop at <b>${INS.moments.length} moments</b>. At each stop, look at the force arrows, answer the question, then write your explanation on paper with the sentence stem.</p>
+      <p class="note">Want different stops? Add a loop or more hills in Sandbox, then come back.</p>
+      <div class="lbtns"><button type="button" class="go" id="nStart">Start the inspection</button></div>`;
+  } else if (INS.k >= INS.moments.length){
+    const firsts = INS.first.filter(Boolean).length;
+    C2.innerHTML = `<div class="cert"><span class="stamp ok">INSPECTION APPROVED</span>
+      <canvas id="nCertPet" width="220" height="220" aria-hidden="true"></canvas>
+      <span class="cname">${esc(nm || 'Untitled coaster')}</span>
+      <ul class="stops">${INS.moments.map((m, i) => `<li><span>${INS.first[i] ? '★' : '☆'}</span><span>${NMOMENTS[m.kind].title}</span><span class="lawtag">${NMOMENTS[m.kind].laws.map(ord).join(' + ')} law</span></li>`).join('')}</ul>
+      <p class="story">${firsts} of ${INS.moments.length} stops right on the first try. Your ride used <b>${new Set(INS.moments.flatMap(m => NMOMENTS[m.kind].laws)).size} of Newton’s 3 laws</b>, often at the same time.</p>
+      <p class="note">${new Date().toLocaleDateString()} · Take a screenshot to turn in with your paper.</p></div>
+      <div class="lbtns"><button type="button" id="nAgain">Inspect again</button><button type="button" id="nToCases">Try the quick cases</button></div>`;
+    const pc = $('nCertPet'); if (pc && STYLE.mascot) drawMascot(pc.getContext('2d'), STYLE.mascot, 110, 125, 62);
+  } else {
+    const m = INS.moments[INS.k], M = NMOMENTS[m.kind], Qn = M.qs[INS.q];
+    const riding = nPlaying;
+    let h = `<div class="eyebrow">Stop ${INS.k + 1} of ${INS.moments.length}</div><h3>${M.title}</h3>`;
+    if (riding){ h += `<p class="note">Riding to the next stop…</p>`; C2.innerHTML = h; return; }
+    h += `<p class="story">${M.scene}</p>` + mcqHTML(Qn.q, Qn.opts.map(o => o[0]), INS.wrong, INS.answered ? Qn.opts.findIndex(o => o[1]) : -1, seededPerm(Qn.opts.length, m.kind + INS.q + 'v3'));
+    if (INS.wrong.length && !INS.answered){ const w = Qn.opts[INS.wrong[INS.wrong.length - 1]]; h += `<p class="fb bad">Not quite. ${w[2]}</p>`; }
+    if (INS.answered){
+      h += `<p class="fb ok">✓ Correct!</p>`;
+      if (INS.q < M.qs.length - 1) h += `<div class="lbtns"><button type="button" class="go" id="nNextQ">Next question</button></div>`;
+      else h += paperHTML(M.stem) + `<div class="lbtns"><button type="button" class="go" id="nNext">${INS.k === INS.moments.length - 1 ? 'Finish the inspection' : 'Keep riding'}</button></div>`;
+    }
+    C2.innerHTML = h;
+  }
+  nStateText(); drawNewton();
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function seededPerm(n, seed){
+  const a = [...Array(n).keys()]; let x = 0;
+  for (const ch of seed) x = (x * 31 + ch.charCodeAt(0)) >>> 0;
+  for (let i = n - 1; i > 0; i--){ x = (x * 1103515245 + 12345) >>> 0; const j = (x >>> 16) % (i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function mcqHTML(q, opts, wrong, right, perm){
+  perm = perm || [...opts.keys()];
+  return `<div class="mcq"><p class="qtext">${q}</p>${perm.map((i, pos) => {
+    const cls = i === right ? 'right' : wrong.includes(i) ? 'wrong' : '';
+    return `<button type="button" class="opt ${cls}" data-opt="${i}" ${cls || right >= 0 ? 'disabled' : ''}><span class="ol">${'ABCD'[pos]}</span><span>${opts[i]}</span></button>`; }).join('')}</div>`;
+}
+function paperHTML(stem){ return `<div class="paper"><span class="ph">✏️ On your paper</span><p>${stem}</p></div>`; }
+
+function nStateText(){
+  const el = $('nState'); if (!INS || INS.blocked){ el.innerHTML = ''; return; }
+  if (INS.k === -1){ el.innerHTML = 'Ready when you are. The inspector stops at each key moment.'; return; }
+  if (INS.k >= INS.moments.length){ el.innerHTML = 'Inspection complete.'; return; }
+  const M = NMOMENTS[INS.moments[INS.k].kind];
+  el.innerHTML = nPlaying ? `Riding… next stop: <b>${M.title.toLowerCase()}</b>` : M.net;
+}
+
+$('nCard').addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.id === 'nFix') return enterSandbox();
+  if (t.id === 'nStarter'){ newInspection(PRESETS.starter()); INS.sig = sigOf(SANDBOX); renderNewton(); return; }
+  if (t.id === 'nStart'){ goToStop(0); return; }
+  if (t.id === 'nAgain'){ INS = null; renderNewton(); return; }
+  if (t.id === 'nToCases'){ NX.mode = 'cases'; renderNewton(); return; }
+  if (t.id === 'nNextQ'){ INS.q++; INS.wrong = []; INS.answered = false; renderNewton(); return; }
+  if (t.id === 'nNext'){ goToStop(INS.k + 1); return; }
+  if (NX.mode !== 'inspect') return;
+  if (t.dataset.opt != null && INS && INS.k >= 0 && INS.k < INS.moments.length && !INS.answered){
+    const i = +t.dataset.opt, Qn = NMOMENTS[INS.moments[INS.k].kind].qs[INS.q];
+    if (Qn.opts[i][1]) INS.answered = true; else { INS.wrong.push(i); INS.first[INS.k] = false; }
+    renderNewton();
+  }
+});
+function goToStop(k){
+  INS.k = k; INS.q = 0; INS.wrong = []; INS.answered = false;
+  if (INS.first[k] === undefined) INS.first[k] = true;
+  if (k >= INS.moments.length){ NS.certs++; saveNewton(); nPlaying = false; nCam = null; renderNewton(); return; }
+  nTarget = INS.moments[k].t;
+  if (nTarget <= nT + 0.01){ nT = nTarget; nPlaying = false; renderNewton(); $('nReplay').disabled = k === 0; return; }
+  nPlaying = true; nLast = 0; $('nReplay').disabled = true; renderNewton(); requestAnimationFrame(nTick);
+}
+function nTick(ts){
+  if (!nPlaying || MODE !== 'newton'){ nPlaying = false; return; }
+  const dt = nLast ? Math.min(0.05, (ts - nLast) / 1000) : 0; nLast = ts;
+  nT = Math.min(nTarget, nT + dt * +$('nSpeed').value);
+  if (nT >= nTarget){ nPlaying = false; $('nReplay').disabled = INS.k === 0; renderNewton(); return; }
+  drawNewton();
+  requestAnimationFrame(nTick);
+}
+$('nReplay').addEventListener('click', () => {
+  if (!INS || INS.k < 1 || nPlaying) return;
+  nT = INS.moments[INS.k - 1].t; nCam = null; nPlaying = true; nLast = 0; $('nReplay').disabled = true; renderNewton(); requestAnimationFrame(nTick);
+});
+$('nSeg').addEventListener('click', e => { const b = e.target.closest('[data-nm]'); if (!b || nPlaying) return; NX.mode = b.dataset.nm; renderNewton(); });
+
+function drawNewton(){
+  if (!INS || NX.mode !== 'inspect') return;
+  const cv = $('nCv'), { ctx, W, H } = fitCanvas(cv);
+  const T = INS.T;
+  ctx.fillStyle = C.paper; ctx.fillRect(0, 0, W, H);
+  let maxX = 0, maxY = 0;
+  for (let i = 0; i < T.n; i += 4){ if (T.X[i] > maxX) maxX = T.X[i]; if (T.Y[i] > maxY) maxY = T.Y[i]; }
+  const bottom = 22, scX0 = (W - 30) / (maxX + 4), scY0 = (H - bottom - 30) / (Math.max(maxY, 10) + 4);
+  const f = INS.blocked ? null : nFrame();
+  const atStop = INS.k >= 0 && INS.k < INS.moments.length && !nPlaying;
+  const station = !f || (INS.k <= 0 && nT < 0.05);
+  const sNow = station ? 9 : f.s;
+  const kp = at(T, sNow);
+  const tgt = atStop && !station ? { z: 2.2, cx: kp.x, cy: kp.y } : atStop && station ? { z: 2.2, cx: 22, cy: 6 } : { z: 1, cx: (maxX + 4) / 2 - 15 / scX0, cy: (H - bottom) / scY0 / 2 - 0.5 };
+  if (!nCam || REDUCED) nCam = { ...tgt }; else { const k = nPlaying ? 0.08 : 0.16; for (const q of ['z', 'cx', 'cy']) nCam[q] += (tgt[q] - nCam[q]) * k; }
+  if (!nPlaying && atStop && Math.abs(nCam.z - tgt.z) > 0.01) requestAnimationFrame(() => drawNewton());
+  const scX = scX0 * nCam.z, scY = scY0 * nCam.z;
+  const sx = x => W / 2 + (x - nCam.cx) * scX, sy = y => (H - bottom) / 2 - (y - nCam.cy) * scY;
+  // ground and grid
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  const step = 10;
+  for (let y = 0; y <= maxY + 20; y += step){ const Y = Math.round(sy(y)) + .5; if (Y > 0 && Y < H) { ctx.beginPath(); ctx.moveTo(0, Y); ctx.lineTo(W, Y); ctx.stroke(); } }
+  const gY = sy(0); ctx.fillStyle = C.ground; ctx.fillRect(0, gY, W, H - gY);
+  // supports
+  ctx.strokeStyle = C.support; ctx.lineWidth = 1; ctx.beginPath();
+  for (let i = 0; i < T.n; i += Math.round(6 / DS)){ if (T.inLoop[i] || T.Y[i] < 0.8) continue; const X = sx(T.X[i]); if (X < -5 || X > W + 5) continue; ctx.moveTo(X, sy(T.Y[i])); ctx.lineTo(X, gY); }
+  ctx.stroke();
+  // brakes and track
+  const br = T.sections[T.sections.length - 1];
+  ctx.save(); ctx.strokeStyle = C.warn; ctx.lineWidth = 3; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.moveTo(sx(at(T, br.s0).x), sy(STATION_H) + 6); ctx.lineTo(sx(at(T, br.s1).x), sy(STATION_H) + 6); ctx.stroke(); ctx.restore();
+  ctx.strokeStyle = STYLE.track || C.track; ctx.lineWidth = Math.max(3, 3 * Math.sqrt(nCam.z)); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath(); for (let i = 0; i < T.n; i += 2) ctx.lineTo(sx(T.X[i]), sy(T.Y[i])); ctx.stroke();
+  // train
+  const carPx = Math.max(18, 4.2 * Math.min(scX, scY)), carH = Math.max(8, Math.min(16, 1.25 * Math.min(scX, scY)));
+  const carCol = c => STYLE.train || (c === 0 ? C.accent : C.car);
+  const scr = s => { const k = at(T, s); return [sx(k.x), sy(k.y)]; };
+  let sHead = sNow, head = null;
+  for (let c = 0; c < 3; c++){
+    const [hx, hy] = scr(sHead);
+    let sb = sHead, bx = hx, by = hy;
+    while (sb > 0.3){ sb -= 0.25; [bx, by] = scr(sb); if (Math.hypot(hx - bx, hy - by) >= carPx) break; }
+    const ang = Math.atan2(hy - by, hx - bx);
+    const mx = (hx + bx) / 2 + Math.sin(ang) * carH * 0.65, my = (hy + by) / 2 - Math.cos(ang) * carH * 0.65;
+    ctx.save(); ctx.translate(mx, my); ctx.rotate(ang); paintCar(ctx, Math.hypot(hx - bx, hy - by) - 2, carH, c, carCol); ctx.restore();
+    if (c === 0) head = { x: mx, y: my, ang };
+    sHead = sb - 3 / scX; if (sHead < 0.3) break;
+  }
+  // force arrows at a stop
+  if (atStop && head && Math.abs(nCam.z - tgt.z) < 0.15){
+    const kind = INS.moments[INS.k].kind, gf = station ? 1 : f.gf;
+    const fx = Math.cos(head.ang), fy = Math.sin(head.ang), nx = Math.sin(head.ang), ny = -Math.cos(head.ang);
+    const A = 38;
+    const arrows = [[0, 1, A, C.air, 'gravity'], [nx, ny, A * Math.max(0.25, Math.min(3, gf)), C.ok, kind === 'valley' || kind === 'loop' ? 'seat / track push' : 'track push']];
+    if (kind === 'lift') arrows.push([fx, fy, A * 0.75, C.muted, 'chain pull']);
+    if (kind === 'brakes') arrows.push([-fx, -fy, A * 1.2, C.bad, 'brakes']);
+    const mono = getComputedStyle(document.body).getPropertyValue('--f-mono');
+    arrows.forEach(([dx, dy, len, col, label], i) => {
+      const ox = head.x + (dx === 0 && dy === 1 ? 0 : 0), oy = head.y;
+      const tx = ox + dx * len, ty = oy + dy * len;
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 3.5; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(tx - dx * 8, ty - dy * 8); ctx.stroke();
+      const px = -dy, py = dx;
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(tx - dx * 11 + px * 6, ty - dy * 11 + py * 6); ctx.lineTo(tx - dx * 11 - px * 6, ty - dy * 11 - py * 6); ctx.closePath(); ctx.fill();
+      ctx.font = `600 12px ${mono}`; ctx.textBaseline = 'middle';
+      const lx = tx + dx * 8 + (Math.abs(dx) < 0.3 ? 8 : 0), ly = ty + dy * 10;
+      ctx.textAlign = dx < -0.3 ? 'right' : dx > 0.3 ? 'left' : 'left';
+      ctx.lineWidth = 3; ctx.strokeStyle = C.paper; ctx.strokeText(label, lx, ly); ctx.fillText(label, lx, ly);
+    });
+    ctx.beginPath(); ctx.arc(head.x, head.y, 4, 0, 7); ctx.fillStyle = C.ink; ctx.fill();
+  }
+}
+
+/* quick cases */
+function renderCase(){
+  const done = Object.keys(NS.cases).length, firsts = Object.values(NS.cases).filter(v => v === 'first').length;
+  $('nScore').textContent = `${done} of ${NCASES.length} solved · ${firsts} first try`;
+  $('nChips').innerHTML = NCASES.map((c, i) => `<li><button type="button" data-case="${i}" class="${NS.cases[i] || ''}" aria-current="${i === NX.ci}" title="${esc(c.title)}">${i + 1}<small>${NS.cases[i] === 'first' ? '★' : NS.cases[i] ? '✓' : '&nbsp;'}</small></button></li>`).join('');
+  const c = NCASES[NX.ci], opts = c.pair ? PAIRS : LAWS3;
+  let h = `<div class="eyebrow">Case ${NX.ci + 1} of ${NCASES.length} · ${c.sys}</div><h3>${c.title}</h3><p class="story">${c.scene}</p>`;
+  h += mcqHTML(c.q, opts, NX.cWrong, NX.cDone ? c.ans : -1);
+  if (NX.cWrong.length && !NX.cDone) h += `<p class="fb bad">Not quite. ${c.hint}</p>`;
+  if (NX.cDone){
+    h += `<p class="fb ok">✓ ${c.why}</p>` + paperHTML(c.stem);
+    h += `<div class="lbtns">${NX.ci < NCASES.length - 1 ? '<button type="button" class="go" id="cNext">Next case</button>' : '<p class="note">That’s every case! Pick any number in the case file to review.</p>'}</div>`;
+  }
+  $('nCard').innerHTML = h;
+}
+$('nChips').addEventListener('click', e => { const b = e.target.closest('[data-case]'); if (!b) return; NX.ci = +b.dataset.case; NX.cWrong = []; NX.cDone = false; renderCase(); });
+$('nCard').addEventListener('click', e => {
+  if (NX.mode !== 'cases') return;
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.id === 'cNext'){ NX.ci++; NX.cWrong = []; NX.cDone = false; renderCase(); return; }
+  if (t.dataset.opt != null && !NX.cDone){
+    const i = +t.dataset.opt, c = NCASES[NX.ci];
+    if (i === c.ans){ NX.cDone = true; if (NS.cases[NX.ci] !== 'first') NS.cases[NX.ci] = NX.cWrong.length ? 'retry' : 'first'; saveNewton(); }
+    else NX.cWrong.push(i);
+    renderCase();
+  }
+});
+new ResizeObserver(() => { if (MODE === 'newton') drawNewton(); }).observe($('nCv'));
+
+function enterNewton(){
+  if (playing){ playing = false; updatePlayBtn(); }
+  lPlaying = false;
+  MODE = 'newton'; document.body.classList.remove('game', 'launch'); document.body.classList.add('newton');
+  ['tabGame', 'tabSand', 'tabLaunch'].forEach(id => $(id).setAttribute('aria-selected', 'false')); $('tabNewton').setAttribute('aria-selected', 'true');
+  setHash('newton'); nCam = null; renderNewton();
+}
+$('tabNewton').addEventListener('click', () => MODE !== 'newton' && enterNewton());
+
+/* ---------- playback ---------- */
+function updatePlayBtn(){
+  if (!R) return;
+  const end = playT >= R.frames[R.frames.length - 1].t;
+  const b = $('playBtn'), o = $('openBtn');
+  b.disabled = false; o.disabled = false;
+  if (playing){ b.textContent = 'Pause'; return; }
+  if (playT > 0 && !end){ b.textContent = 'Resume'; return; }
+  if (MODE !== 'game'){ b.textContent = end ? 'Ride again' : 'Ride it'; return; }
+  const A = GS.active;
+  if (!A){ b.textContent = 'Test ride'; b.disabled = true; o.disabled = true; return; }
+  if (SHOW()) b.textContent = 'Watch test again';
+  else if (A.testsLeft > 0) b.textContent = `Test ride (${A.testsLeft} left)`;
+  else { b.textContent = 'No tests left'; b.disabled = true; }
+  o.disabled = overBudget();
+}
+function tick(ts){
+  if (!playing) return;
+  const dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 0; lastTs = ts;
+  playT += dt * +$('speedSel').value;
+  const tEnd = R.frames[R.frames.length - 1].t;
+  if (playT >= tEnd){ playT = tEnd; playing = false; updatePlayBtn(); setTimeout(finishRide, 350); }
+  drawAll();
+  if (playing) requestAnimationFrame(tick);
+}
+function startRide(){
+  playT = 0.0001; playing = true; lastTs = 0; cam = null; $('pop').hidden = true; updatePlayBtn(); requestAnimationFrame(tick);
+}
+$('playBtn').addEventListener('click', () => {
+  const tEnd = R.frames[R.frames.length - 1].t;
+  if (playing){ playing = false; updatePlayBtn(); return; }
+  if (MODE === 'game' && !(playT > 0 && playT < tEnd) && !SHOW()){ beginTest(); return; }
+  if (playT >= tEnd) playT = 0;
+  if (playT === 0) playT = 0.0001;
+  playing = true; lastTs = 0; cam = null; $('pop').hidden = true; updatePlayBtn(); requestAnimationFrame(tick);
+});
+$('resetBtn').addEventListener('click', () => { playing = false; playT = 0; cam = null; updatePlayBtn(); drawAll(); positionPop(); finishRide(); });
+$('followChk').addEventListener('change', () => { cam = null; drawAll(); });
+new ResizeObserver(() => { drawAll(); positionPop(); }).observe($('trackCv'));
+new ResizeObserver(() => drawAll()).observe($('chartCv'));
+
+{ const h = location.hash.slice(1);
+  setReal(REAL);
+  if (h === 'goals' || h === 'contracts') enterGame();
+  else { enterSandbox(); if (h === 'launch-lab') enterLaunch(); else if (h === 'newton') enterNewton(); } }
+let savedMode = 'fit'; try { savedMode = localStorage.getItem('coasterlab-view') || 'fit'; } catch (e) {}
+setMode(savedMode === 'true' ? 'true' : 'fit');
+if (document.fonts) document.fonts.ready.then(drawAll);
+})();
+</script>
+
+</body>
+</html>
